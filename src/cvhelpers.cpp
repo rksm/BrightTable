@@ -118,7 +118,17 @@ Mat combineImages(vector<Mat> images) {
     return result;
 }
 
+Mat getAndClearRecordedImages() {
+    Mat result;
+    if (!recordedImages.empty()) {
+        result = combineImages(recordedImages);
+        recordedImages.clear();
+    } else {
+        result = Mat(200, 200, CV_8U, Scalar::all(0));
+    }
+    return result;
+}
+
 void saveRecordedImages(const string& filename) {
-    imwrite(filename, combineImages(recordedImages));
-    recordedImages.clear();
+    imwrite(filename, getAndClearRecordedImages());
 }
