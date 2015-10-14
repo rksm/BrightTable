@@ -9,7 +9,7 @@ find_package (OpenCV REQUIRED)
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 # sources
 file(GLOB_RECURSE HandDetection_SOURCES "src/*.cpp")
-file(GLOB_RECURSE HandDetection_HEADERS "src/*.h")
+file(GLOB_RECURSE HandDetection_HEADERS "src/*.hpp")
 
 set (HandDetection_INCLUDE_DIRS "")
 foreach (_headerFile ${HandDetection_HEADERS})

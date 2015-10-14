@@ -1,4 +1,4 @@
-#include "HandDetection.h"
+#include "HandDetection.hpp"
 #include <numeric>
 #include <algorithm>
 #include "timer.h"
@@ -47,7 +47,8 @@ Mat prepareForContourDetection(Mat src, bool renderDebugImages = false)
     // if (renderDebugImages) recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
+    threshold(dst, dst, 220, 255, CV_THRESH_BINARY);
+    // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
     // if (renderDebugImages) recordImage(dst, "threshold");

@@ -1,27 +1,5 @@
-#include "HandDetection.h"
+#include "HandDetection.hpp"
 #include "json/json/json.h"
-
-
-    // Json::StreamWriterBuilder builder;
-    // builder["commentStyle"] = "None";
-    // builder["indentation"] = "   ";  // or whatever you like
-    // Json::FastWriter writer;
-
-    // Json::Value event;
-    // Json::Value vec(Json::arrayValue);
-    // vec.append(Json::Value(1));
-    // vec.append(Json::Value(2));
-    // vec.append(Json::Value(3));
-
-    // event["competitors"]["home"]["name"] = "Liverpool";
-    // event["competitors"]["away"]["code"] = 89223;
-    // event["competitors"]["away"]["name"] = "Aston Villa";
-    // event["competitors"]["away"]["code"]=vec;
-
-    // auto result = writer.write(event);
-    // std::cout << result << std::endl;  // add lf and flush
-
-    // std::cout << event << std::endl;
 
 Json::Value convert(cv::Point data) {
   Json::Value json;
@@ -77,7 +55,7 @@ Json::Value convert(FrameWithHands data) {
   return json;
 }
 
-string frameWithHandsToJSONString(FrameWithHands data) {
+std::string frameWithHandsToJSONString(FrameWithHands data) {
   Json::FastWriter writer;
   return writer.write(convert(data));
 }

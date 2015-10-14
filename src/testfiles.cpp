@@ -1,4 +1,4 @@
-#include "HandDetection.h"
+#include "HandDetection.hpp"
 
 #include <numeric>
 #include <regex>

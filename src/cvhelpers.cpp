@@ -1,10 +1,11 @@
-#include "HandDetection.h"
+#include "HandDetection.hpp"
 #include <numeric>
 #include <algorithm>
 
 using namespace cv;
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// colors
 
 RNG rng(12345);
 const Scalar randomColor() {
@@ -12,6 +13,7 @@ const Scalar randomColor() {
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//  rext drawing
 
 int BOXSIZE = 500;
 
@@ -61,6 +63,7 @@ void drawText(string text, Mat frame) {
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// Image recording
 
 vector<Mat> recordedImages;
 
