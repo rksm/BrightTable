@@ -1,7 +1,7 @@
 #include "HandDetection.hpp"
+#include "timer.hpp"
 #include <numeric>
 #include <algorithm>
-#include "timer.h"
 
 using namespace cv;
 
@@ -31,7 +31,9 @@ struct ConvexityDefect
     float distFromCenter;
 };
 
-Mat prepareForContourDetection(Mat src, bool renderDebugImages = false)
+Mat prepareForContourDetection(
+    Mat src,
+    bool renderDebugImages = false)
 {
 
     if (renderDebugImages) recordImage(src, "orig");
@@ -44,10 +46,10 @@ Mat prepareForContourDetection(Mat src, bool renderDebugImages = false)
     // blur(src_gray, dst, Size(4,4));
     // equalizeHist(dst, dst);
     medianBlur(dst, dst, 11);
-    // if (renderDebugImages) recordImage(dst, "blur");
+    if (renderDebugImages) recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    threshold(dst, dst, 220, 255, CV_THRESH_BINARY);
+    threshold(dst, dst, 150, 255, CV_THRESH_BINARY_INV);
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
@@ -68,7 +70,11 @@ Mat prepareForContourDetection(Mat src, bool renderDebugImages = false)
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-void contourHullExtraction(PointV &contours, PointV &hullPoints, vector<int> &hullInts, vector<Vec4i> &defects) {
+void contourHullExtraction(
+    PointV &contours,
+    PointV &hullPoints,
+    vector<int> &hullInts, vector<Vec4i> &defects)
+{
     convexHull(contours, hullPoints);
     convexHull(contours, hullInts);
     if (hullPoints.size() >= 3) {
@@ -223,7 +229,11 @@ vector<Finger> findFingerTips(vector<ConvexityDefect> defects, PointV hullPoints
   return result;
 }
 
-vector<HandData> findContours(const Mat src, bool renderDebugImages = false)
+vector<HandData> findContours(
+  const Mat src,
+  bool renderDebugImages = false,
+  Mat projectionTransform = Mat::eye(3,3, CV_32F),
+  Size projSize = Size(400,300))
 {
     vector<HandData> result;
     vector<Vec4i> hierarchy;
@@ -282,6 +292,8 @@ vector<HandData> findContours(const Mat src, bool renderDebugImages = false)
     }
 
     if (renderDebugImages) recordImage(debugImage, "hand data");
+    // cv::warpPerspective(debugImage, debugImage, projectionTransform, projSize);
+    // if (renderDebugImages) recordImage(debugImage, "hand data");
 
     return result;
 }
@@ -294,14 +306,14 @@ const int LOW = 150;
 const int maxImageWidth = 1000;
 const int maxImageHeight = 1000;
 
-FrameWithHands processFrame(Mat src, bool renderDebugImages)
+FrameWithHands processFrame(Mat src, bool renderDebugImages, Mat projectionTransform, Size projSize)
 {
 
     vector<HandData> hands;
     std::cout << timeToRunMs([&](){
         Mat resized = resizeToFit(src, maxImageWidth, maxImageHeight);
         Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
-        hands = findContours(thresholded, renderDebugImages);
+        hands = findContours(thresholded, renderDebugImages, projectionTransform, projSize);
     }).count() << std::endl;
 
     return FrameWithHands {std::time(nullptr), src.size(), hands};

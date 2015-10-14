@@ -1,9 +1,12 @@
-#include "quad-transform.h"
+#include "quad-transform.hpp"
 #include <algorithm>
+
+#include "HandDetection.hpp"
 
 using cv::Point2f;
 using cv::Vec4i;
 using cv::Mat;
+using cv::Rect;
 using std::vector;
 
 Point2f computeIntersect(Vec4i a, Vec4i b)
@@ -22,18 +25,48 @@ Point2f computeIntersect(Vec4i a, Vec4i b)
         return Point2f(-1, -1);
 }
 
-// http://opencv-code.com/tutorials/automatic-perspective-correction-for-quadrilateral-objects/
+// // http://opencv-code.com/tutorials/automatic-perspective-correction-for-quadrilateral-objects/
+// std::vector<Point2f> findCorners(vector<Vec4i> lines)
+// {
+//   std::vector<Point2f> corners;
+//   for (int i = 0; i < lines.size(); i++)
+//   {
+//       for (int j = i+1; j < lines.size(); j++)
+//       {
+//           Point2f pt = computeIntersect(lines[i], lines[j]);
+//           if (pt.x >= 0 && pt.y >= 0)
+//               corners.push_back(pt);
+//       }
+//   }
+//   return corners;
+// }
+
+const int slopeEps = 3;
+
+bool similarSlope(Vec4i l1, Vec4i l2) {
+  auto slope1 = (double)(l1[3] - l1[1]) / (double)(l1[2] - l1[0]),
+       slope2 = (double)(l2[3] - l2[1]) / (double)(l2[2] - l1[0]);
+
+  std::cout << slope1 << "..." << slope2 << std::endl;
+  return (std::max(slope1, slope2) - std::min(slope1, slope2)) < slopeEps;
+}
+
 std::vector<Point2f> findCorners(vector<Vec4i> lines)
 {
   std::vector<Point2f> corners;
   for (int i = 0; i < lines.size(); i++)
   {
-      for (int j = i+1; j < lines.size(); j++)
-      {
-          Point2f pt = computeIntersect(lines[i], lines[j]);
-          if (pt.x >= 0 && pt.y >= 0)
-              corners.push_back(pt);
+    for (int j = i+1; j < lines.size(); j++)
+    {
+      Point2f pt = computeIntersect(lines[i], lines[j]);
+      if (pt.x >= 0 && pt.y >= 0) {
+          Point2f p1(lines[i][0],lines[i][1]),
+                  p2(lines[j][0],lines[j][1]);
+          float angle = radToDeg(angleBetween(p1, p2, pt));
+          std::cout << angle << std::endl;
+          if ((angle > 80) && (angle < 120)) corners.push_back(pt);
       }
+    }
   }
   return corners;
 }
@@ -47,47 +80,53 @@ bool isQuadrilateral(vector<Point2f> corners)
   return approx.size() == 4;
 }
 
-void sortCorners(vector<Point2f>& corners, Point2f center)
+vector<Point2f> sortBoundingBoxPoints(vector<Point2f> &points, Point2f center, Rect fromRect)
 {
     // returns top-left, top-right, bottom-right, and bottom-left.
-    std::vector<Point2f> top, bot;
+    std::vector<Point2f> tls, bls, trs, brs;
 
-    for (auto p : corners)
+    for (auto p : points)
     {
-      if (p.y < center.y) top.push_back(p);
-      else bot.push_back(p);
+      if (p.y < center.y)
+        if (p.x < center.x) tls.push_back(p);
+        else trs.push_back(p);
+      else
+        if (p.x < center.x) bls.push_back(p);
+        else brs.push_back(p);
     }
 
-    Point2f tl = top[0].x > top[1].x ? top[1] : top[0],
-            tr = top[0].x > top[1].x ? top[0] : top[1],
-            bl = bot[0].x > bot[1].x ? bot[1] : bot[0],
-            br = bot[0].x > bot[1].x ? bot[0] : bot[1];
+    if (tls.empty() || bls.empty() || trs.empty() || brs.empty())
+      return vector<Point2f>();
 
-    corners.clear();
-    corners.push_back(tl);
-    corners.push_back(tr);
-    corners.push_back(br);
-    corners.push_back(bl);
+    auto tl_it = min_element(tls.begin(), tls.end(), [&](Point2f p1, Point2f p2) { auto ref = Point2f(fromRect.x,     fromRect.y);      return norm(ref - p1) < norm(ref - p2); }),
+         tr_it = min_element(trs.begin(), trs.end(), [&](Point2f p1, Point2f p2) { auto ref = Point2f(fromRect.width, fromRect.y);      return norm(ref - p1) < norm(ref - p2); }),
+         bl_it = min_element(bls.begin(), bls.end(), [&](Point2f p1, Point2f p2) { auto ref = Point2f(fromRect.x,     fromRect.height); return norm(ref - p1) < norm(ref - p2); }),
+         br_it = min_element(brs.begin(), brs.end(), [&](Point2f p1, Point2f p2) { auto ref = Point2f(fromRect.width, fromRect.height); return norm(ref - p1) < norm(ref - p2); });
+
+    return std::vector<Point2f> {*tl_it,*tr_it,*br_it,*bl_it};
 }
 
-void cornersSorted(vector<Point2f> &corners)
+vector<Point2f> pointsSorted(vector<Point2f> &boundingBoxPoints, Rect fromRect)
 {
   // Get mass center
   Point2f center(0,0);
-  for (int i = 0; i < corners.size(); i++)
-    center += corners[i];
+  for (int i = 0; i < boundingBoxPoints.size(); i++)
+    center += boundingBoxPoints[i];
 
-  center *= (1. / corners.size());
-  sortCorners(corners, center);
+  center *= (1. / boundingBoxPoints.size());
+
+  return sortBoundingBoxPoints(boundingBoxPoints, center, fromRect);
 }
 
-Mat cornersToRectTransform(vector<Point2f> &corners, cv::Rect destBounds)
+Mat boundingBoxPointsToRectTransform(vector<Point2f> &boundingBoxPoints, Rect fromRect, Rect destBounds)
 {
   // Corners = four points defining a quadrilateral; width, height defining a
   // target rectangle
 
-  cornersSorted(corners);  
+  vector<Point2f> corners = pointsSorted(boundingBoxPoints, fromRect);
+  if (corners.empty()) return Mat::eye(3,3,CV_32F);
 
+  // std::cout << corners << std::endl;
   std::vector<Point2f> quadPoints {
     Point2f(destBounds.x, destBounds.y),
     Point2f(destBounds.width, destBounds.y),
@@ -96,26 +135,34 @@ Mat cornersToRectTransform(vector<Point2f> &corners, cv::Rect destBounds)
   };
 
   // Get transformation matrix
+  // std::rotate(corners.rbegin(), corners.rbegin() + 1, corners.rend());
   return cv::getPerspectiveTransform(corners, quadPoints);
 }
 
-Mat projectLinesTransform(vector<Vec4i> &lines, Mat &fromMat, cv::Rect intoRect)
+Mat projectLinesTransform(vector<Vec4i> &lines, Rect fromRect, Rect intoRect)
 {
   // takes a set of (quadrilateral) lines and returns a perspective transform
   // to map stuff into the area defined by intoRect
-
   vector<Point2f> corners = findCorners(lines);
-  std::remove_if(corners.begin(), corners.end(), [&](Point2f p) {
-    return (p.x < 0) || (p.y < 0)
-        || (p.x > fromMat.cols) || (p.y > fromMat.rows);
-  });
+  corners.erase(std::remove_if(corners.begin(), corners.end(),
+    [&](Point2f p) { return !fromRect.contains(p); }), corners.end());
 
-  return cornersToRectTransform(corners, intoRect);
+  // Mat area = Mat::zeros(fromRect.size(), CV_8UC1);
+  // for (auto p : corners) {
+  //   circle(area, p, 10, cv::Scalar(255,0,0), 3);
+  // }
+  // recordImage(area, "??????");
+
+  // assert(all_of(corners.begin(), corners.end(),
+  //   [&](cv::Point2f p){ return fromRect.contains(p); }));
+
+  return boundingBoxPointsToRectTransform(corners, fromRect,intoRect);
 }
 
 void projectLinesInto(vector<Vec4i> &lines, Mat &fromMat, Mat &intoMat)
 {
-  cv::Rect projectionRect(cv::Point(0,0), intoMat.size());
-  Mat tfm = projectLinesTransform(lines, fromMat, projectionRect);
+  Rect fromRect(cv::Point(0,0), fromMat.size());
+  Rect projectionRect(cv::Point(0,0), intoMat.size());
+  Mat tfm = projectLinesTransform(lines, fromRect, projectionRect);
   cv::warpPerspective(fromMat, intoMat, tfm, projectionRect.size());
 }

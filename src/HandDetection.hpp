@@ -3,28 +3,7 @@
 
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-// helpers
-inline double angleBetween(cv::Point2d p1, cv::Point2d p2, cv::Point2d c = cv::Point(0.0,0.0))
-{
-  cv::Point2d q1 = p1 - c, q2 = p2 - c;
-  return acos((q1 * (1/cv::norm(q1))).ddot(q2 * (1/cv::norm(q2))));
-}
-
-inline double radToDeg(double r) { return 180/CV_PI * r; };
-
-template<typename PointType>
-void drawPointsConnected(std::vector<PointType> points, cv::Mat &out)
-{
-  std::vector<PointType> pointsCopy(points.size());
-  std::rotate_copy(points.begin(), points.begin()+1, points.end(), pointsCopy.begin());
-  for (auto it = points.begin(), it2 = pointsCopy.begin(); it != points.end(); it++, it2++) {
-    line(out, *it, *it2, cv::Scalar(255,255,0), 2);
-  }
-}
-template void drawPointsConnected<cv::Point2f >(std::vector<cv::Point2f >, cv::Mat&);
-template void drawPointsConnected<cv::Point >(std::vector<cv::Point >, cv::Mat&);
+#include "cv-helper.hpp"
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // hand detection
@@ -57,23 +36,7 @@ struct FrameWithHands {
   cv::Size imageSize;
   std::vector<HandData> hands;
 };
-FrameWithHands processFrame(cv::Mat, bool = false);
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-// screen detection
-cv::Mat extractLargestRectangle(cv::Mat, cv::Size, bool = false);
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-cv::Mat resizeToFit(cv::Mat, int, int);
-const cv::Scalar randomColor();
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-void recordImage(const cv::Mat, std::string);
-void saveRecordedImages(const std::string&);
-cv::Mat getAndClearRecordedImages();
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-std::vector<std::string> findTestFiles();
+FrameWithHands processFrame(cv::Mat, bool = false, cv::Mat = cv::Mat::eye(3, 3, CV_32F), cv::Size = cv::Size(400,300));
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 std::string frameWithHandsToJSONString(FrameWithHands data);

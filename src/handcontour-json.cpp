@@ -1,5 +1,5 @@
 #include "HandDetection.hpp"
-#include "json/json/json.h"
+#include "json/json.h"
 
 Json::Value convert(cv::Point data) {
   Json::Value json;
