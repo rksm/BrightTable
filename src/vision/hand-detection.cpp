@@ -286,12 +286,7 @@ vector<Finger> findFingerTips(
   return result;
 }
 
-vector<HandData> findContours(
-  const Mat &src,
-  Mat &contourImg,
-  bool renderDebugImages = false,
-  Mat projectionTransform = Mat::eye(3,3, CV_32F),
-  Size projSize = Size(400,300))
+vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugImages = false)
 {
     vector<HandData> result;
     vector<Vec4i> hierarchy;
@@ -364,9 +359,6 @@ vector<HandData> findContours(
       debugImage.copyTo(contourImg);
     }
 
-    // cv::warpPerspective(debugImage, debugImage, projectionTransform, projSize);
-    // if (renderDebugImages) recordImage(debugImage, "hand data");
-
     return result;
 }
 
@@ -378,20 +370,15 @@ const int LOW = 150;
 const int maxImageWidth = 1000;
 const int maxImageHeight = 1000;
 
-FrameWithHands processFrame(
-    Mat &src,
-    Mat &out,
-    bool renderDebugImages,
-    Mat projectionTransform, Size projSize)
+FrameWithHands processFrame(Mat &src, Mat &out, bool renderDebugImages)
 {
 
     vector<HandData> hands;
     std::cout << timeToRunMs([&](){
         Mat resized = resizeToFit(src, maxImageWidth, maxImageHeight);
         Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
-        hands = findContours(thresholded, out, renderDebugImages, projectionTransform, projSize);
+        hands = findContours(thresholded, out, renderDebugImages);
     }).count() << std::endl;
 
     return FrameWithHands {std::time(nullptr), src.size(), hands};
-
 }

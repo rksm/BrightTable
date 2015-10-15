@@ -11,18 +11,26 @@ using cv::Point;
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-void prepareImage(Mat &imgIn, Mat &imgOut)
+void prepareImage(const Mat &imgIn, Mat &imgOut)
 {
   if (imgIn.type() == CV_8UC3) cvtColor(imgIn, imgOut, CV_BGR2GRAY);
+  else imgIn.copyTo(imgOut);
   medianBlur(imgOut, imgOut, 21);
   threshold(imgOut, imgOut, 150, 255, CV_THRESH_BINARY);
+  // cvtColor(imgOut, imgOut, CV_RGB2GRAY);
 }
 
-void extractContours(Mat &imgIn, Mat &imgOut, vector<cv::Point2f> &corners)
+Mat extractContours(const Mat &imgIn, bool debugRecordings)
 {
+  
+  Mat dst = Mat::zeros(imgIn.size(), CV_8UC1);
+  Mat contourDst = Mat::zeros(imgIn.size(), CV_8UC1);
+  prepareImage(imgIn, dst);
+  if (debugRecordings) recordImage(dst, "prep");
+
   vector<vector<cv::Point>> contours;
   vector<cv::Vec4i> hierarchy;
-  findContours(imgIn, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_TC89_L1, Point(0, 0));
+  findContours(dst, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_TC89_L1, Point(0, 0));
 
   double area = 0;
   int biggestI = 0;
@@ -34,36 +42,12 @@ void extractContours(Mat &imgIn, Mat &imgOut, vector<cv::Point2f> &corners)
     }
   }
 
-  if (true) // hull points
-  {
-    vector<Point> hullPoints;
-    convexHull(contours[biggestI], hullPoints);
-    drawPointsConnected<Point>(hullPoints, imgOut);
+  vector<Point> hullPoints;
+  convexHull(contours[biggestI], hullPoints);
+  drawPointsConnected<Point>(hullPoints, contourDst);
+  if (debugRecordings) recordImage(contourDst, "contour");
 
-    // // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    // Mat area = Mat::zeros(imgOut.size(), CV_8UC1);
-    // cv::RotatedRect r = cv::minAreaRect(hullPoints);
-    // cv::Point2f pts[4];
-    // r.points(pts);
-    // // vector<cv::Point2f> v(pts);
-    // vector<cv::Point2f> v(pts, pts + sizeof pts / sizeof pts[0]);
-    // drawPointsConnected<cv::Point2f>(v, area);
-    // recordImage(area, "contours");
-
-  }
-
-  if (false)
-  {
-    drawContours(imgOut, contours, biggestI, cv::Scalar(255, 255, 255), 2, 8, hierarchy, 0, Point());
-  }
-
-  if (false)
-  {
-    vector<Point> contours_poly;
-    approxPolyDP( Mat(contours[biggestI]), contours_poly, 3, true);
-    drawPointsConnected<Point>(contours_poly, imgOut);
-  }
-
+  return contourDst;
 }
 
 vector<cv::Vec4i> detectLines(Mat &imgIn)
@@ -105,18 +89,9 @@ vector<cv::Vec4i> detectLines(Mat &imgIn)
   }
 }
 
-
-vector<cv::Vec4i> extractLinesForLargestRectangle(Mat src, bool debugRecordings)
+vector<cv::Vec4i> findLinesOfLargestRect(Mat src, bool debugRecordings)
 {
-  Mat dst = Mat::zeros(src.size(), CV_8UC1);
-  prepareImage(src, dst);
-  if (debugRecordings) recordImage(dst, "prep");
-
-  Mat contours = Mat::zeros(src.size(), CV_8UC1);
-  vector<cv::Point2f> corners;
-  extractContours(dst, contours, corners);
-  if (debugRecordings) recordImage(contours, "contours");
-
+  Mat contours = extractContours(src, debugRecordings);
   vector<cv::Vec4i> lines = detectLines(contours);
   
   if (debugRecordings)
@@ -129,20 +104,20 @@ vector<cv::Vec4i> extractLinesForLargestRectangle(Mat src, bool debugRecordings)
   return lines;
 }
 
-Mat extractLargestRectangle(Mat src, cv::Size size, bool debugRecordings)
-{
-  vector<cv::Vec4i> lines = extractLinesForLargestRectangle(src, debugRecordings);
-
-  cv::Mat projected = cv::Mat::zeros(size.width, size.height, CV_8UC3);
-  projectLinesInto(lines, src, projected);
-  if (debugRecordings) recordImage(projected, "projection");
-  return projected;
-}
-
 Mat screenProjection(Mat src, cv::Size size, bool debugRecordings)
 {
-  vector<cv::Vec4i> lines = extractLinesForLargestRectangle(src, debugRecordings);
-  return projectLinesTransform(lines,
-    cv::Rect(cv::Point(0,0), src.size()),
-    cv::Rect(cv::Point(0,0), size));
+  // cv::Mat projectLinesTransform(std::vector<cv::Vec4i>&,  cv::Rect, cv::Rect);
+  return projectLinesTransform(
+          findLinesOfLargestRect(src, debugRecordings),
+          cv::Rect(cv::Point(0,0), src.size()),
+          cv::Rect(cv::Point(0,0), size));
+}
+
+Mat extractLargestRectangle(Mat src, cv::Size size, bool debugRecordings)
+{
+  Mat proj = screenProjection(src, size, debugRecordings);
+  cv::Mat projected = cv::Mat::zeros(size.width, size.height, CV_8UC3);
+  cv::warpPerspective(src, projected, proj, size);
+  if (debugRecordings) recordImage(projected, "projection");
+  return projected;
 }

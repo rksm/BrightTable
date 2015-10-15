@@ -49,11 +49,7 @@ struct FrameWithHands {
   std::vector<HandData> hands;
 };
 
-FrameWithHands processFrame(
-  cv::Mat&, cv::Mat&,
-  bool = false,
-  cv::Mat = cv::Mat::eye(3, 3, CV_32F),
-  cv::Size = cv::Size(400,300));
+FrameWithHands processFrame(cv::Mat&, cv::Mat&, bool = false);
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 std::string frameWithHandsToJSONString(FrameWithHands data);
