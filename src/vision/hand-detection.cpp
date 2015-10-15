@@ -1,5 +1,4 @@
 #include "vision/hand-detection.hpp"
-#include "timer.hpp"
 #include <numeric>
 #include <algorithm>
 
@@ -60,29 +59,28 @@ Mat prepareForContourDetection(
     // if (renderDebugImages) recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    threshold(dst, dst, 150, 255, CV_THRESH_BINARY_INV);
+    threshold(dst, dst, 120, 255, CV_THRESH_BINARY_INV);
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
-    
+    // if (renderDebugImages) recordImage(dst, "threshold");
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), 5);
+
     // "crop" the image...
-    int cropWidth = 10;
+    int cropWidth = 12;
     auto black = Scalar(0,0,0);
     rectangle(dst, Point(0, 0), Point(cropWidth, size.height), black, CV_FILLED);
     rectangle(dst, Point(0, 0), Point(size.width, cropWidth), black, CV_FILLED);
     rectangle(dst, Point(size.width - cropWidth, 0), Point(size.width, size.height), black, CV_FILLED);
     rectangle(dst, Point(0, size.height), Point(size.width, size.height), black, CV_FILLED);
-    // if (renderDebugImages) recordImage(dst, "threshold");
-
-    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), 5);
-    // if (renderDebugImages) recordImage(dst, "dilate");
+    if (renderDebugImages) recordImage(dst, "dilate");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     /// Canny detector
     // Canny(dst, dst, lowThreshold, lowThreshold*ratio, kernel_size);
     // if (renderDebugImages) recordImage(dst, "canny");
-
 
     return dst;
 }
@@ -96,7 +94,7 @@ HandContour findHandContour(
 {
   // find which contour points are on the image's edge. This is where the arm
   // starts
-  int offset = 25;
+  int offset = 15;
   Rect innerRect(offset, offset,
     fullImageBounds.width-2*offset, fullImageBounds.height-2*offset);
   
@@ -370,7 +368,7 @@ vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugI
           drawContours(debugImage, contours, i, color, 2, 8, hierarchy, 0, Point());
           
           drawRect(debugImage, CV_RGB(0,255,0), handContour.bounds);
-          // circle(debugImage, handContour.pointTowards, 10, CV_RGB(255,255,255), 3);
+          circle(debugImage, handContour.pointTowards, 10, CV_RGB(255,255,255), 3);
 
           // drawContours(debugImage, hullsP, i, color, 1, 8, vector<Vec4i>(), 0, Point());
           // drawHull(debugImage, color, hullsP[i]);
@@ -413,13 +411,8 @@ const int maxImageHeight = 1000;
 
 FrameWithHands processFrame(Mat &src, Mat &out, bool renderDebugImages)
 {
-
-    vector<HandData> hands;
-    // std::cout << timeToRunMs([&](){
-        Mat resized = resizeToFit(src, maxImageWidth, maxImageHeight);
-        Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
-        hands = findContours(thresholded, out, renderDebugImages);
-    // }).count() << std::endl;
-
-    return FrameWithHands {std::time(nullptr), src.size(), hands};
+  Mat resized = resizeToFit(src, maxImageWidth, maxImageHeight);
+  Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
+  vector<HandData> hands = findContours(thresholded, out, renderDebugImages);
+  return FrameWithHands {std::time(nullptr), src.size(), hands};
 }

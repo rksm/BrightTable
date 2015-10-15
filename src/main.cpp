@@ -2,6 +2,7 @@
 #include "vision/hand-detection.hpp"
 #include "vision/screen-detection.hpp"
 #include "json/json.h"
+#include "timer.hpp"
 
 using std::string;
 using std::vector;
@@ -21,7 +22,7 @@ int main(int argc, char** argv)
 {
   Mat frame;
   bool debug = true;
-  int videoDevNo = 0;
+  int videoDevNo = 1;
 
   // cv::Size tfmedSize(432, 820);
   cv::Size tfmedSize(820, 432);
@@ -57,21 +58,40 @@ int main(int argc, char** argv)
   }
   else if (mode == "transform-screen-file")
   {
-    // vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-2.png"};
-    vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
+    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/faded-screen.png"};
+    // vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
-        Mat result = extractLargestRectangle(resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700), tfmedSize, true);
-        imwrite(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed.png"), result);
-        saveRecordedImages(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed-debug.png"));
+      Mat input = resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700); 
+      Mat result = extractLargestRectangle(input, tfmedSize, true);
+      cv::Mat proj = screenProjection(input, tfmedSize, true);
+      std::cout << proj << std::endl;
+      imwrite(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed.png"), result);
+      saveRecordedImages(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed-debug.png"));
     }
   }
   else if (mode == "transform-screen-and-recognize-file")
   {
-    // vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-4.png"};
-    vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
+    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-16.png"};
+    // vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
       cv::Mat input = resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700);
-      cv::Mat proj = screenProjection(input, tfmedSize, true);
+      // cv::Mat proj = screenProjection(input, tfmedSize, true);
+
+      cv::Mat proj = cv::Mat::zeros(3,3, CV_32FC1);
+ 
+      proj.at<float>(0,0) = 1.311824869288347;
+      proj.at<float>(0,1) = 0.5819373495118125;
+      proj.at<float>(0,2) = -245.2718043772442;
+      
+      proj.at<float>(1,0) = -0.2655269490085852;
+      proj.at<float>(1,1) = 1.286784500521986;
+      proj.at<float>(1,2) = 19.15879094694175;;
+      
+      proj.at<float>(2,0) = -0.0002367759237758272;
+      proj.at<float>(2,1) = 0.0005972594927079796;
+      proj.at<float>(2,2) = 1;
+
+
       cv::Mat output = transformFrame(input, tfmedSize, proj);
       processFrame(output, output, true);
 
@@ -135,8 +155,11 @@ int main(int argc, char** argv)
     for(;;)
     {
       cap >> frame;
-      Mat output = transformFrame(resizeToFit(frame, 1000, 1000), tfmedSize, proj);
-      processFrame(output, output, true);
+      // std::cout << timeToRunMs([&](){
+        Mat output = transformFrame(resizeToFit(frame, 1000, 1000), tfmedSize, proj);
+        auto handData = processFrame(output, output, true);
+        std::cout << frameWithHandsToJSONString(handData) << std::endl;
+      // }).count() << std::endl;
       imshow("out", resizeToFit(getAndClearRecordedImages(), 1400,1400));
       if (cv::waitKey(30) >= 0) break;
     }
