@@ -1,4 +1,4 @@
-#include "HandDetection.hpp"
+#include "hand-detection.hpp"
 #include "timer.hpp"
 #include <numeric>
 #include <algorithm>

@@ -1,4 +1,4 @@
-#include "HandDetection.hpp"
+#include "cv-helper.hpp"
 #include <numeric>
 #include <algorithm>
 

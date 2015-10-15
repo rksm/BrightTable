@@ -1,5 +1,5 @@
-#ifndef HANDDETECTION_H_
-#define HANDDETECTION_H_
+#ifndef LIVE_TABLE_HAND_DETECTION_H_
+#define LIVE_TABLE_HAND_DETECTION_H_
 
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
@@ -41,4 +41,4 @@ FrameWithHands processFrame(cv::Mat, bool = false, cv::Mat = cv::Mat::eye(3, 3, 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 std::string frameWithHandsToJSONString(FrameWithHands data);
 
-#endif  // HANDDETECTION_H_
+#endif  // LIVE_TABLE_HAND_DETECTION_H_

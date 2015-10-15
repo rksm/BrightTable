@@ -1,6 +1,6 @@
 #include "screen-detection.hpp"
 #include "quad-transform.hpp"
-#include "HandDetection.hpp"
+#include "hand-detection.hpp"
 
 #include <numeric>
 #include <algorithm>

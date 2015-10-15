@@ -1,7 +1,7 @@
 #include "quad-transform.hpp"
 #include <algorithm>
 
-#include "HandDetection.hpp"
+#include "hand-detection.hpp"
 
 using cv::Point2f;
 using cv::Vec4i;

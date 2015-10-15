@@ -1,4 +1,4 @@
-#include "HandDetection.hpp"
+#include "hand-detection.hpp"
 #include "test-files.hpp"
 #include "screen-detection.hpp"
 #include "json/json.h"
@@ -77,8 +77,9 @@ int main(int argc, char** argv)
           // std::cout
           //   << frameWithHandsToJSONString(processFrame(cv::imread(file, CV_LOAD_IMAGE_COLOR), true))
           //   << std::endl;
-          processFrame(cv::imread(file, CV_LOAD_IMAGE_COLOR), true);
-          saveRecordedImages(std::regex_replace(file, reg, "-result.png"));
+          processFrame(imread(file, CV_LOAD_IMAGE_COLOR), true);
+          saveRecordedImages(std::regex_replace(file, reg, "-debug.png"));
+          // cv::imwrite(std::regex_replace(file, reg, "-result.png"));
       }
   }
   else if (mode == "convert-video") {
