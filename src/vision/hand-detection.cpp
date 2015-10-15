@@ -32,7 +32,7 @@ struct ConvexityDefect
 };
 
 Mat prepareForContourDetection(
-    Mat src,
+    Mat &src,
     bool renderDebugImages = false)
 {
 
@@ -119,14 +119,18 @@ void drawHull(Mat &drawing, Scalar color, PointV &hullPoints)
     }
 }
 
-void drawMoments(Mat &drawing, Scalar color, vector<Moments> momentsVec)
+void drawMoments(Mat &drawing, const Scalar color, const vector<Moments> &momentsVec)
 {
-    Moments mo = momentsVec.back();
+    const Moments mo = momentsVec.back();
     Point pos = Point((int) (mo.m10 / mo.m00), (int) (mo.m01 / mo.m00));
     circle(drawing, pos, 10, color, 5);
 }
 
-vector<ConvexityDefect> convexityDefects(Mat &drawing, PointV &contours, int palmRadius, Point palmCenter, vector<Vec4i> &defects)
+vector<ConvexityDefect> convexityDefects(
+    Mat &drawing,
+    const PointV &contours,
+    const int palmRadius, const Point palmCenter,
+    const vector<Vec4i> &defects)
 {
     vector<ConvexityDefect> result;
 
@@ -156,7 +160,10 @@ vector<ConvexityDefect> convexityDefects(Mat &drawing, PointV &contours, int pal
     return result;
 }
 
-void drawConvexityDefects(Mat &drawing, Scalar color, vector<ConvexityDefect> defects)
+void drawConvexityDefects(
+    Mat &drawing,
+    const Scalar color,
+    const vector<ConvexityDefect> &defects)
 {
     for (auto d : defects) {
       // line(drawing, ptStart, ptEnd, CV_RGB(255,0,0), 2 );
@@ -170,34 +177,10 @@ void drawConvexityDefects(Mat &drawing, Scalar color, vector<ConvexityDefect> de
     }
 }
 
-struct Line {
-  Point p1;
-  Point p2;
-  bool operator==(const Line &l2) { return p1 == l2.p1 && p2 == l2.p2; }
-};
-
-struct Triangle {
-  Point p1;
-  Point p2;
-  Point p3;
-  bool operator==(const Triangle &t) { return p1 == t.p1 && p2 == t.p2 && p3 == t.p3; }
-  bool operator<(const Triangle &t) const { return norm(p1) < norm(t.p1); }
-  friend std::ostream& operator<< (std::ostream& o, const Triangle &t)
-  {
-    return o << "Triangle<" << t.p1 << "," << t.p2 << "," << t.p3 << std::endl;
-  }
-};
-
-
-// std::ostream& operator<<(std::ostream &o, const Triangle &t)
-// {
-//     return o << "Triangle<" << t.p1 << "," << t.p2 << "," << t.p3 << std::endl;
-// }
-
-// using Line = std::tuple<Point, Point>;
-// using Triangle = std::tuple<Point, Point, Point>;
-
-vector<Finger> findFingerTips(vector<ConvexityDefect> defects, PointV hullPoints, Rect innerBounds)
+vector<Finger> findFingerTips(
+    const vector<ConvexityDefect> &defects,
+    const PointV &hullPoints,
+    const Rect innerBounds)
 {
   // Guess 1: if angle from defect point to the two connecting hull points is
   // sharp it is probably a finger
@@ -209,7 +192,8 @@ vector<Finger> findFingerTips(vector<ConvexityDefect> defects, PointV hullPoints
   std::rotate_copy(defects.begin(), defects.begin()+1, defects.end(), defectsCopy.begin());
   vector<Finger> result;
 
-  for (auto it = defects.begin(), it2 = defectsCopy.begin(); it != defects.end(); it++, it2++) {
+  auto it2 = defectsCopy.begin();
+  for (auto it = defects.begin(); it != defects.end(); it++, it2++) {
       // std::cout << norm(it->onHullStart - it2->onHullEnd) << "...." << norm(it->onHullEnd - it2->onHullStart) << std::endl;
       if (norm(it->onHullStart - it2->onHullEnd) < fingerTipWidth) {
         Point mid = it->onHullStart + (it2->onHullEnd - it->onHullStart) * .5;        
@@ -230,7 +214,7 @@ vector<Finger> findFingerTips(vector<ConvexityDefect> defects, PointV hullPoints
 }
 
 vector<HandData> findContours(
-  const Mat src,
+  const Mat &src,
   bool renderDebugImages = false,
   Mat projectionTransform = Mat::eye(3,3, CV_32F),
   Size projSize = Size(400,300))
@@ -306,7 +290,10 @@ const int LOW = 150;
 const int maxImageWidth = 1000;
 const int maxImageHeight = 1000;
 
-FrameWithHands processFrame(Mat src, bool renderDebugImages, Mat projectionTransform, Size projSize)
+FrameWithHands processFrame(
+    Mat src,
+    bool renderDebugImages,
+    Mat projectionTransform, Size projSize)
 {
 
     vector<HandData> hands;

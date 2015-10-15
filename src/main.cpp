@@ -58,8 +58,8 @@ int main(int argc, char** argv)
     vector<string> testFiles = findTestFiles(std::regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
         Mat result = extractLargestRectangle(resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700), tfmedSize, true);
-        imwrite(std::regex_replace(file, reg, "-result.png"), result);
-        saveRecordedImages(std::regex_replace(file, reg, "-debug.png"));
+        imwrite(std::regex_replace(file, reg, "-tfmed.png"), result);
+        saveRecordedImages(std::regex_replace(file, reg, "-tfmed-debug.png"));
     }
   }
   else if (mode == "recognize-one-video-frame")
@@ -71,7 +71,7 @@ int main(int argc, char** argv)
   else if (mode == "recognize-test-files")
   {
       std::regex reg("\\.[a-z]+$");
-      vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-tfmed-1.png"};
+      vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-1-tfmed.png"};
       // vector<string> testFiles = findTestFiles();
       for (auto file : testFiles) {
           std::cout
