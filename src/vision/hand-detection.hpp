@@ -20,9 +20,10 @@ struct HandContour
 
 struct Finger
 {
-  cv::Point base1;
-  cv::Point base2;
-  cv::Point tip;
+  cv::Point2f base1;
+  cv::Point2f base2;
+  cv::Point2f tip;
+  int length() const { return std::max(norm(base1-tip), norm(base2-tip)); };
   double angle() const { return angleBetween(base1, base2, tip); };
   bool operator==(const Finger &f) { return base1 == f.base1 && base2 == f.base2 && tip == f.tip; };
   friend std::ostream& operator<< (std::ostream& o, const Finger &f)
