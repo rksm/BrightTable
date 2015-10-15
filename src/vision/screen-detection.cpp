@@ -1,6 +1,6 @@
-#include "screen-detection.hpp"
-#include "quad-transform.hpp"
-#include "hand-detection.hpp"
+#include "vision/screen-detection.hpp"
+#include "vision/quad-transform.hpp"
+#include "vision/cv-helper.hpp"
 
 #include <numeric>
 #include <algorithm>

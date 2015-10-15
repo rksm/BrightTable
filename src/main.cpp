@@ -1,6 +1,6 @@
-#include "hand-detection.hpp"
 #include "test-files.hpp"
-#include "screen-detection.hpp"
+#include "vision/hand-detection.hpp"
+#include "vision/screen-detection.hpp"
 #include "json/json.h"
 
 using std::string;
@@ -74,9 +74,9 @@ int main(int argc, char** argv)
       vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-tfmed-1.png"};
       // vector<string> testFiles = findTestFiles();
       for (auto file : testFiles) {
-          // std::cout
-          //   << frameWithHandsToJSONString(processFrame(cv::imread(file, CV_LOAD_IMAGE_COLOR), true))
-          //   << std::endl;
+          std::cout
+            << frameWithHandsToJSONString(processFrame(cv::imread(file, CV_LOAD_IMAGE_COLOR), true))
+            << std::endl;
           processFrame(imread(file, CV_LOAD_IMAGE_COLOR), true);
           saveRecordedImages(std::regex_replace(file, reg, "-debug.png"));
           // cv::imwrite(std::regex_replace(file, reg, "-result.png"));
