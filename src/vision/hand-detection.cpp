@@ -22,23 +22,34 @@ int kernel_size = 3;
 // considered as one fingertip?
 const int fingerTipWidth = 100; 
 
+template<typename PointType>
+PointType meanPos(vector<PointType> points)
+{
+  PointType c(0,0);
+  for (auto p : points) c += p;
+  c.x /= points.size();
+  c.y /= points.size();
+  return c;
+}
+
 struct ConvexityDefect
 {
-    Point onHullStart;  // point of the contour where the defect begins
-    Point onHullEnd;    // point of the contour where the defect ends
-    Point defect;       // the farthest from the convex hull point within the defect
-    float distFromHull; // distance between the farthest point and the convex hull
-    float distFromCenter;
+  Point onHullStart;  // point of the contour where the defect begins
+  Point onHullEnd;    // point of the contour where the defect ends
+  Point defect;       // the farthest from the convex hull point within the defect
+  float distFromHull; // distance between the farthest point and the convex hull
+  float distFromCenter;
 };
 
 Mat prepareForContourDetection(
-    Mat &src,
-    bool renderDebugImages = false)
+  Mat &src,
+  bool renderDebugImages = false)
 {
 
     if (renderDebugImages) recordImage(src, "orig");
 
     // Mat dst = Mat::zeros(src.size(), CV_8UC1);
+    Size size = src.size();
     Mat dst;
     cvtColor(src, dst,CV_RGB2GRAY);
 
@@ -46,18 +57,26 @@ Mat prepareForContourDetection(
     // blur(src_gray, dst, Size(4,4));
     // equalizeHist(dst, dst);
     medianBlur(dst, dst, 11);
-    if (renderDebugImages) recordImage(dst, "blur");
+    // if (renderDebugImages) recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     threshold(dst, dst, 150, 255, CV_THRESH_BINARY_INV);
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
-    // if (renderDebugImages) recordImage(dst, "threshold");
+    
+    // "crop" the image...
+    int cropWidth = 10;
+    auto black = Scalar(0,0,0);
+    rectangle(dst, Point(0, 0), Point(cropWidth, size.height), black, CV_FILLED);
+    rectangle(dst, Point(0, 0), Point(size.width, cropWidth), black, CV_FILLED);
+    rectangle(dst, Point(size.width - cropWidth, 0), Point(size.width, size.height), black, CV_FILLED);
+    rectangle(dst, Point(0, size.height), Point(size.width, size.height), black, CV_FILLED);
+    if (renderDebugImages) recordImage(dst, "threshold");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), 5);
-    if (renderDebugImages) recordImage(dst, "dilate");
+    // if (renderDebugImages) recordImage(dst, "dilate");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     /// Canny detector
@@ -69,6 +88,61 @@ Mat prepareForContourDetection(
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+HandContour findHandContour(
+  PointV contourPoints,
+  RotatedRect contourBounds,
+  Rect fullImageBounds)
+{
+  // find which contour points are on the image's edge. This is where the arm
+  // starts
+  int offset = 25;
+  Rect innerRect(offset, offset,
+    fullImageBounds.width-2*offset, fullImageBounds.height-2*offset);
+  
+  PointV pointsOnEdge;
+  for (auto p : contourPoints) {
+    if (innerRect.contains(p)) continue;
+    pointsOnEdge.push_back(p);
+  }
+
+  // find the opposite end to the arm start
+  Point armStart = minAreaRect(pointsOnEdge).center,
+        pointingToP = armStart;
+  int maxDist = 0;
+  for (auto p : contourPoints)
+  {
+    int dist = norm(p - armStart);
+    if (dist > maxDist) { pointingToP = p; maxDist = dist; }
+  }
+
+  // find the bounding box around the palm area. We assume that the hands
+  // "width" is around 1/3 of its "length". Mabe more with outstretched fingers?
+  float longSide = std::max(contourBounds.size.width, contourBounds.size.height),
+        shortSide = std::min(contourBounds.size.width, contourBounds.size.height),
+        ratio = (shortSide / longSide),
+        longSideShortened = ratio > 0.3 ? longSide : shortSide * 1.6;
+
+  PointV pointsNearCenter;
+  for (auto p : contourPoints)
+    if (norm(pointingToP - p) <= longSideShortened)
+      pointsNearCenter.push_back(p);
+
+  auto boundsAroundHand = minAreaRect(pointsNearCenter);
+  
+  Point2f to = Point2f(pointingToP.x, pointingToP.y);
+
+  int fingerRadius = max(boundsAroundHand.size.width, boundsAroundHand.size.height)/2;
+  Point palmCenter = boundsAroundHand.center + (to - boundsAroundHand.center)*.5;
+
+  return HandContour{
+    boundsAroundHand,
+    pointsNearCenter,
+    armStart, pointingToP,
+    fingerRadius,
+    palmCenter
+  };
+}
 
 void contourHullExtraction(
     PointV &contours,
@@ -98,19 +172,16 @@ bool contourMoments(PointV &contours, vector<Moments> &momentsVec)
     return false;
 }
 
-void contourBounds(PointV &contours, Point &palmCenter, int &palmRadius, RotatedRect &cBounds, RotatedRect &defectBounds)
-{
-    cBounds = fitEllipse(contours);
-    Size size = cBounds.size;
-    defectBounds = RotatedRect(
-        cBounds.center,
-        Size2f(size.width*0.66, size.height*0.66),
-        cBounds.angle);
-    palmRadius = max(defectBounds.size.width, defectBounds.size.height)/2;
-    palmCenter = defectBounds.center;
-}
-
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+void drawRect(Mat &drawing, Scalar color, RotatedRect rect)
+{
+  Point2f pts[4]; rect.points(pts);
+  line(drawing, pts[0], pts[1], color, 6);
+  line(drawing, pts[1], pts[2], color, 6);
+  line(drawing, pts[2], pts[3], color, 6);
+  line(drawing, pts[3], pts[0], color, 6);
+}
 
 void drawHull(Mat &drawing, Scalar color, PointV &hullPoints)
 {
@@ -128,17 +199,17 @@ void drawMoments(Mat &drawing, const Scalar color, const vector<Moments> &moment
 
 vector<ConvexityDefect> convexityDefects(
     Mat &drawing,
-    const PointV &contours,
-    const int palmRadius, const Point palmCenter,
+    const HandContour c,
     const vector<Vec4i> &defects)
 {
     vector<ConvexityDefect> result;
 
     for (Vec4i d : defects) {
         int startidx = d[0], endidx = d[1], faridx = d[2];
-        Point onHullStart(contours[startidx]); // point of the contour where the defect begins
-        Point onHullEnd(contours[endidx]); // point of the contour where the defect ends
-        Point defect(contours[faridx]);// the farthest from the convex hull point within the defect
+        Point defect(c.contourPoints[faridx]);// the farthest from the convex hull point within the defect
+        if (norm(defect-c.palmCenter) > c.fingerRadius) continue;
+        Point onHullStart(c.contourPoints[startidx]); // point of the contour where the defect begins
+        Point onHullEnd(c.contourPoints[endidx]); // point of the contour where the defect ends
         float distFromHull = d[3] / 256; // distance between the farthest point and the convex hull
         // if (distFromHull > 20)
         {
@@ -149,7 +220,7 @@ vector<ConvexityDefect> convexityDefects(
                   onHullEnd,                   // onHullEnd
                   defect,                      // defect
                   distFromHull,                // distFromHull
-                  (float)norm(defect - palmCenter) // distFromCenter
+                  (float)norm(defect - c.palmCenter) // distFromCenter
                 };
                 result.push_back(data);
             // }
@@ -188,6 +259,8 @@ vector<Finger> findFingerTips(
   // another finger tip and the lines to their defects are nearly parallel, we
   // have another (pointing) finger
 
+  if (defects.empty()) return vector<Finger>();
+
   vector<ConvexityDefect> defectsCopy(defects.size());
   std::rotate_copy(defects.begin(), defects.begin()+1, defects.end(), defectsCopy.begin());
   vector<Finger> result;
@@ -215,6 +288,7 @@ vector<Finger> findFingerTips(
 
 vector<HandData> findContours(
   const Mat &src,
+  Mat &contourImg,
   bool renderDebugImages = false,
   Mat projectionTransform = Mat::eye(3,3, CV_32F),
   Size projSize = Size(400,300))
@@ -227,55 +301,69 @@ vector<HandData> findContours(
     vector<cv::vector<int>> hullsI(contours.size());
     vector<vector<Vec4i> > defects(contours.size());
     vector<vector<Moments>> momentsVec(contours.size());
-    Size imageSize = src.size();
-    long minArea = ((imageSize.width * imageSize.height) / 100) * 5; // 5%
+    Rect imageBounds = Rect(0,0, src.cols, src.rows);
+    long minArea = ((imageBounds.width * imageBounds.height) / 100) * 5; // 5%
     int innerImageOffset = 100;
     Rect innerImageBounds {
       Point(innerImageOffset, innerImageOffset),
-      Size(imageSize.width-innerImageOffset, imageSize.height-innerImageOffset)};
+      Size(imageBounds.width-innerImageOffset, imageBounds.height-innerImageOffset)};
 
-    Mat debugImage = Mat::zeros(imageSize, CV_8UC3);
+    Mat debugImage = Mat::zeros(imageBounds.size(), CV_8UC3);
 
     // std::cout << "Found " << contours.size() << " contours" << std::endl;
     /// Draw contours
     for (int i = 0; i< contours.size(); i++)
     {
         double area = std::abs(contourArea(contours[i], true));
-        if (area > minArea && contours[i].size() >= 5)
-        {
+        if (contours[i].size() < 5) continue;
+        if (area < minArea && contours[i].size() < 500) continue;
+        RotatedRect fullContourBounds = fitEllipse(contours[i]);
 
-            RotatedRect cBounds, defectBounds; int radius; Point center;
-            contourBounds(contours[i], center, radius, cBounds, defectBounds);
-            if ((center.x < imageSize.width) && (center.y < imageSize.height)) {
-              contourHullExtraction(contours[i], hullsP[i], hullsI[i], defects[i]);
-              bool momentsFound = contourMoments(contours[i], momentsVec[i]);
-              vector<ConvexityDefect> defectData = convexityDefects(debugImage, contours[i], radius, center, defects[i]);
-              vector<Finger> fingers = findFingerTips(defectData, hullsP[i], innerImageBounds);
+        if ((fullContourBounds.center.x > imageBounds.width)
+         && (fullContourBounds.center.y > imageBounds.height)) continue;
 
-              result.push_back(HandData{radius,center, cBounds, defectBounds, fingers});
+        HandContour handContour = findHandContour(contours[i], fullContourBounds, imageBounds);
 
-              if (renderDebugImages) {
-                auto color = randomColor();
-                drawContours(debugImage, contours, i, color, 2, 8, hierarchy, 0, Point());
-                drawContours(debugImage, hullsP, i, color, 1, 8, vector<Vec4i>(), 0, Point());
-                drawHull(debugImage, color, hullsP[i]);
-                if (momentsFound) drawMoments(debugImage, color, momentsVec[i]);
-                ellipse(debugImage, cBounds, CV_RGB(255,0,0), 2, 8 );
-                ellipse(debugImage, defectBounds, CV_RGB(0,255,0), 3, 8 );
-                circle(debugImage, center, radius, CV_RGB(0,0,255), 3, 8 );
-                // drawConvexityDefects(debugImage, color, defectData);
-                for (auto f : fingers) {
-                  line(debugImage, f.base1, f.tip, CV_RGB(255,0,0), 6);
-                  line(debugImage, f.base2, f.tip, CV_RGB(255,0,0), 6);
-                  circle(debugImage, f.tip,   18, CV_RGB(255,0,0), 10 );
-                }
-              }
-            }
+        contourHullExtraction(handContour.contourPoints, hullsP[i], hullsI[i], defects[i]);
 
+        bool momentsFound = contourMoments(contours[i], momentsVec[i]);
+        vector<ConvexityDefect> defectData = convexityDefects(debugImage, handContour, defects[i]);
+        vector<Finger> fingers = findFingerTips(defectData, hullsP[i], innerImageBounds);
+
+        result.push_back(HandData{
+          handContour.fingerRadius, handContour.palmCenter,
+          fullContourBounds, handContour.bounds,
+          fingers
+        });
+
+        if (renderDebugImages) {
+          auto color = randomColor();
+          drawContours(debugImage, contours, i, color, 2, 8, hierarchy, 0, Point());
+          
+          drawRect(debugImage, CV_RGB(0,255,0), handContour.bounds);
+          circle(debugImage, handContour.pointTowards, 10, CV_RGB(255,0,0), 5);
+
+          // drawContours(debugImage, hullsP, i, color, 1, 8, vector<Vec4i>(), 0, Point());
+          // drawHull(debugImage, color, hullsP[i]);
+          // if (momentsFound) drawMoments(debugImage, color, momentsVec[i]);
+          // ellipse(debugImage, cBounds, CV_RGB(255,0,0), 2, 8 );
+          // ellipse(debugImage, defectBounds, CV_RGB(0,255,0), 3, 8 );
+          circle(debugImage, handContour.palmCenter, handContour.fingerRadius, CV_RGB(0,0,255), 3, 8 );
+          // drawConvexityDefects(debugImage, color, defectData);
+          for (auto f : fingers) {
+            line(debugImage, f.base1, f.tip, CV_RGB(255,0,0), 6);
+            line(debugImage, f.base2, f.tip, CV_RGB(255,0,0), 6);
+            circle(debugImage, f.tip,   18, CV_RGB(255,0,0), 10 );
+          }
         }
+
     }
 
-    if (renderDebugImages) recordImage(debugImage, "hand data");
+    if (renderDebugImages) {
+      recordImage(debugImage, "hand data");
+      debugImage.copyTo(contourImg);
+    }
+
     // cv::warpPerspective(debugImage, debugImage, projectionTransform, projSize);
     // if (renderDebugImages) recordImage(debugImage, "hand data");
 
@@ -291,7 +379,8 @@ const int maxImageWidth = 1000;
 const int maxImageHeight = 1000;
 
 FrameWithHands processFrame(
-    Mat src,
+    Mat &src,
+    Mat &out,
     bool renderDebugImages,
     Mat projectionTransform, Size projSize)
 {
@@ -300,7 +389,7 @@ FrameWithHands processFrame(
     std::cout << timeToRunMs([&](){
         Mat resized = resizeToFit(src, maxImageWidth, maxImageHeight);
         Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
-        hands = findContours(thresholded, renderDebugImages, projectionTransform, projSize);
+        hands = findContours(thresholded, out, renderDebugImages, projectionTransform, projSize);
     }).count() << std::endl;
 
     return FrameWithHands {std::time(nullptr), src.size(), hands};

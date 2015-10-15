@@ -3,12 +3,23 @@
 
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
-#include "cv-helper.hpp"
+#include "vision/cv-helper.hpp"
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // hand detection
 
-struct Finger {
+struct HandContour
+{
+  cv::RotatedRect bounds;
+  std::vector<cv::Point> contourPoints;
+  cv::Point armStart;
+  cv::Point pointTowards;
+  int fingerRadius;
+  cv::Point palmCenter;
+};
+
+struct Finger
+{
   cv::Point base1;
   cv::Point base2;
   cv::Point tip;
@@ -23,7 +34,8 @@ struct Finger {
   }
 };
 
-struct HandData {
+struct HandData
+{
   int palmRadius; // min(width, height) / 2 if contourBounds
   cv::Point palmCenter; // min(width, height) / 2 if contourBounds
   cv::RotatedRect contourBounds;
@@ -36,7 +48,12 @@ struct FrameWithHands {
   cv::Size imageSize;
   std::vector<HandData> hands;
 };
-FrameWithHands processFrame(cv::Mat, bool = false, cv::Mat = cv::Mat::eye(3, 3, CV_32F), cv::Size = cv::Size(400,300));
+
+FrameWithHands processFrame(
+  cv::Mat&, cv::Mat&,
+  bool = false,
+  cv::Mat = cv::Mat::eye(3, 3, CV_32F),
+  cv::Size = cv::Size(400,300));
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 std::string frameWithHandsToJSONString(FrameWithHands data);
