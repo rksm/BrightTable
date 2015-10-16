@@ -59,7 +59,7 @@ Mat prepareForContourDetection(
     // if (renderDebugImages) recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    threshold(dst, dst, 120, 255, CV_THRESH_BINARY_INV);
+    threshold(dst, dst, 100, 255, CV_THRESH_BINARY_INV);
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
@@ -74,8 +74,8 @@ Mat prepareForContourDetection(
     rectangle(dst, Point(0, 0), Point(cropWidth, size.height), black, CV_FILLED);
     rectangle(dst, Point(0, 0), Point(size.width, cropWidth), black, CV_FILLED);
     rectangle(dst, Point(size.width - cropWidth, 0), Point(size.width, size.height), black, CV_FILLED);
-    rectangle(dst, Point(0, size.height), Point(size.width, size.height), black, CV_FILLED);
-    if (renderDebugImages) recordImage(dst, "dilate");
+    rectangle(dst, Point(0, size.height - cropWidth), Point(size.width, size.height), black, CV_FILLED);
+    // if (renderDebugImages) recordImage(dst, "dilate");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     /// Canny detector
@@ -94,7 +94,7 @@ HandContour findHandContour(
 {
   // find which contour points are on the image's edge. This is where the arm
   // starts
-  int offset = 15;
+  int offset = 35;
   Rect innerRect(offset, offset,
     fullImageBounds.width-2*offset, fullImageBounds.height-2*offset);
   
@@ -274,8 +274,6 @@ vector<Finger> findFingerTips(
     }
   }
 
-  recordImage(debug, "foo");
-
   // for (int i = 0; i < defects.size(); i++)
   // {
   //   Point before = i > 0 ? defects[i-1].onHullEnd : Point(0,0);
@@ -318,7 +316,7 @@ vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugI
     vector<vector<Vec4i> > defects(contours.size());
     vector<vector<Moments>> momentsVec(contours.size());
     Rect imageBounds = Rect(0,0, src.cols, src.rows);
-    long minArea = ((imageBounds.width * imageBounds.height) / 100) * 5; // 5%
+    long minArea = ((imageBounds.width * imageBounds.height) / 100) * 2; // 5%
     int innerImageOffset = 100;
     Rect innerImageBounds {
       Point(innerImageOffset, innerImageOffset),

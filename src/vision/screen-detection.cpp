@@ -16,7 +16,7 @@ void prepareImage(const Mat &imgIn, Mat &imgOut)
   if (imgIn.type() == CV_8UC3) cvtColor(imgIn, imgOut, CV_BGR2GRAY);
   else imgIn.copyTo(imgOut);
   medianBlur(imgOut, imgOut, 21);
-  threshold(imgOut, imgOut, 150, 255, CV_THRESH_BINARY);
+  threshold(imgOut, imgOut, 100, 255, CV_THRESH_BINARY);
   // cvtColor(imgOut, imgOut, CV_RGB2GRAY);
 }
 

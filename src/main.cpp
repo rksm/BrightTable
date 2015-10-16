@@ -22,7 +22,7 @@ int main(int argc, char** argv)
 {
   Mat frame;
   bool debug = true;
-  int videoDevNo = 1;
+  int videoDevNo = 0;
 
   // cv::Size tfmedSize(432, 820);
   cv::Size tfmedSize(820, 432);
@@ -38,11 +38,7 @@ int main(int argc, char** argv)
   {
       cv::VideoCapture cap = cv::VideoCapture(videoDevNo);
       cap.read(frame);
-      cv::imwrite("/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/foo.png", frame);
-      for (;;) {
-        imshow("debug", frame);
-        if (cv::waitKey(30) >= 0) break;
-      }
+      cv::imwrite("/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/other-webcam-issue-2.png", frame);
   }
   else if (mode == "recognize-screen-video")
   {
@@ -58,7 +54,7 @@ int main(int argc, char** argv)
   }
   else if (mode == "transform-screen-file")
   {
-    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/faded-screen.png"};
+    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/other-webcam.png"};
     // vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
       Mat input = resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700); 
@@ -71,24 +67,32 @@ int main(int argc, char** argv)
   }
   else if (mode == "transform-screen-and-recognize-file")
   {
-    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-16.png"};
+    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/other-webcam-issue-2.png"};
     // vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
       cv::Mat input = resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700);
       // cv::Mat proj = screenProjection(input, tfmedSize, true);
 
+      // cv::Mat proj = cv::Mat::zeros(3,3, CV_32FC1);
+      // proj.at<float>(0,0) = 1.311824869288347;
+      // proj.at<float>(0,1) = 0.5819373495118125;
+      // proj.at<float>(0,2) = -245.2718043772442;
+      // proj.at<float>(1,0) = -0.2655269490085852;
+      // proj.at<float>(1,1) = 1.286784500521986;
+      // proj.at<float>(1,2) = 19.15879094694175;;
+      // proj.at<float>(2,0) = -0.0002367759237758272;
+      // proj.at<float>(2,1) = 0.0005972594927079796;
+      // proj.at<float>(2,2) = 1;
+
       cv::Mat proj = cv::Mat::zeros(3,3, CV_32FC1);
- 
-      proj.at<float>(0,0) = 1.311824869288347;
-      proj.at<float>(0,1) = 0.5819373495118125;
-      proj.at<float>(0,2) = -245.2718043772442;
-      
-      proj.at<float>(1,0) = -0.2655269490085852;
-      proj.at<float>(1,1) = 1.286784500521986;
-      proj.at<float>(1,2) = 19.15879094694175;;
-      
-      proj.at<float>(2,0) = -0.0002367759237758272;
-      proj.at<float>(2,1) = 0.0005972594927079796;
+      proj.at<float>(0,0) = 1.652389079784966;
+      proj.at<float>(0,1) = 0.5326780287383337;
+      proj.at<float>(0,2) = -222.7898690137106;;
+      proj.at<float>(1,0) = -0.0363833634945249;
+      proj.at<float>(1,1) = 1.649966529588601;
+      proj.at<float>(1,2) = -15.15386596733211;
+      proj.at<float>(2,0) = -8.42207531049395e-05;
+      proj.at<float>(2,1) = 0.001051777679467157;
       proj.at<float>(2,2) = 1;
 
 
@@ -125,6 +129,7 @@ int main(int argc, char** argv)
   }
   else if (mode == "convert-video") {
     cv::VideoCapture cap = cv::VideoCapture(videoDevNo);
+    bool debug = true;
     Mat frame;
 
     // 1. define screen area...
@@ -139,7 +144,7 @@ int main(int argc, char** argv)
       cap >> frame;
       // show transformed area to check the projection...
       frame = resizeToFit(frame, 700, 700);
-      proj = screenProjection(frame, tfmedSize, true);
+      proj = screenProjection(frame, tfmedSize, debug);
       if ((proj.at<int>(0,0) != 0) && (proj.at<int>(0,1) != 0)) break;
       if (cv::waitKey(30) >= 0) break;
     }
@@ -152,16 +157,24 @@ int main(int argc, char** argv)
       if (cv::waitKey(30) >= 0) break;
     }
 
-    for(;;)
+    std::chrono::system_clock clock;
+    auto t = clock.now();
+    while(1)
     {
-      cap >> frame;
+      cap.read(frame);
       // std::cout << timeToRunMs([&](){
-        Mat output = transformFrame(resizeToFit(frame, 1000, 1000), tfmedSize, proj);
-        auto handData = processFrame(output, output, true);
+        Mat output = transformFrame(resizeToFit(frame, 700, 700), tfmedSize, proj);
+        auto handData = processFrame(output, output, debug);
         std::cout << frameWithHandsToJSONString(handData) << std::endl;
       // }).count() << std::endl;
       imshow("out", resizeToFit(getAndClearRecordedImages(), 1400,1400));
-      if (cv::waitKey(30) >= 0) break;
+      if (cv::waitKey(10) >= 0) break;
+
+      // auto now = clock.now();
+      // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - t);
+      // t = now;
+      // std::cout << duration.count() << std::endl;
+
     }
   }
 

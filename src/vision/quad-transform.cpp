@@ -82,7 +82,7 @@ std::vector<Point2f> findCorners(vector<Vec4i> lines)
                   p2(lines[j][0],lines[j][1]);
           float angle = radToDeg(angleBetween(p1, p2, pt));
           // std::cout << angle << std::endl;
-          if ((angle > 70) && (angle < 130)) corners.push_back(pt);
+          if ((angle > 60) && (angle < 140)) corners.push_back(pt);
       }
     }
   }
