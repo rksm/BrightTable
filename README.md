@@ -6,8 +6,8 @@ Furniture of the future Or how to get more out of your table tops :)
 
 ## Install
 
-Make sure you have [jsoncpp](https://github.com/open-source-parsers/jsoncpp)
-installed. On OS X you can use homebrew.
+Make sure you have [opencv](http://opencv.org/) and [jsoncpp](https://github.com/open-source-parsers/jsoncpp)
+installed. On OS X you can use homebrew for that.
 
 ## LICENSE
 
