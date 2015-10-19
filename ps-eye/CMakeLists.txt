@@ -13,13 +13,19 @@ ExternalProject_Add(PS3EYEDriver
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
 
-set(SOURCES
-  main.cpp
+set(SOURCES main.cpp)
+
+set(PS3EYEDriver_SOURCES
   ${PS3EYEDriver_INSTALL_DIR}/src/PS3EYEDriver/src/ps3eye.cpp
   ${PS3EYEDriver_INSTALL_DIR}/src/PS3EYEDriver/src/ps3eye.h)
-include_directories(${PS3EYEDriver_INSTALL_DIR}/src/PS3EYEDriver/src)
-add_executable(ps-eye ${SOURCES})
 
+include_directories(${PS3EYEDriver_INSTALL_DIR}/src/PS3EYEDriver/src)
+
+# git clone is done after configuration
+set_source_files_properties(${PS3EYEDriver_SOURCES} PROPERTIES GENERATED TRUE)
+add_executable(ps-eye ${SOURCES} ${PS3EYEDriver_SOURCES})
+
+add_dependencies(ps-eye PS3EYEDriver)
 target_link_libraries (ps-eye ${OpenCV_LIBS})
 target_link_libraries(ps-eye ${LIBUSB_1_LIBRARIES})
 
