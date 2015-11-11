@@ -5,4 +5,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 add_subdirectory(hand-detector)
-add_subdirectory(ps-eye)
+# add_subdirectory(hand-detector-bin)
+add_subdirectory(hand-detector-server)
+# add_subdirectory(ps-eye)

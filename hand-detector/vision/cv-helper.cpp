@@ -2,6 +2,9 @@
 #include <numeric>
 #include <algorithm>
 
+namespace cvhelper
+{
+
 using namespace cv;
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -62,40 +65,37 @@ void drawText(string text, Mat frame) {
     putText(frame, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
 }
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-// Image recording
+void resizeToFit(Mat &in, Mat &out, int maxWidth, int maxHeight)
+{
+  float height = in.rows, width = in.cols;
+  if (width <= maxWidth && height <= maxHeight)
+  {
+    if (&in != &out) out = in;
+    return;
+  }
 
-vector<Mat> recordedImages;
-
-Mat resizeToFit(Mat mat, int maxWidth, int maxHeight) {
-    Mat dst = mat;
-    float height = mat.rows, width = mat.cols;
-    bool needsResize = false;
-    if (height > maxHeight) {
-        width = round(width * (maxHeight / height));
-        height = maxHeight;
-        needsResize = true;
-    }
-    // std::cout << width << " " << height << std::endl;
-    if (width > maxWidth) {
-        height = round(height * (maxWidth / width));
-        width = maxWidth;
-        needsResize = true;
-    }
-    if (needsResize) {
-        dst = Mat(width, height, mat.type());
-        resize(mat, dst, Size(width, height));
-    }
-    return dst;
+  if (height > maxHeight) {
+    width = round(width * (maxHeight / height));
+    height = maxHeight;
+  }
+  if (width > maxWidth) {
+    height = round(height * (maxWidth / width));
+    width = maxWidth;
+  }
+  resize(in, out, Size(width, height));
 }
 
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// Image recording
+vector<Mat> recordedImages;
+
 void recordImage(const Mat im, string title = "") {
-    Mat recordedIm = im.clone();
+    Mat resizedIm, recordedIm = im.clone();
     if (recordedIm.type() == CV_8UC1)
         cvtColor(recordedIm, recordedIm, CV_GRAY2RGB);
-    resizeToFit(recordedIm, 700, 700);
-    drawText(title, recordedIm);
-    recordedImages.push_back(recordedIm);
+    resizeToFit(recordedIm, resizedIm, 700, 700);
+    drawText(title, resizedIm);
+    recordedImages.push_back(resizedIm);
 }
 
 Mat combineImages(vector<Mat> images) {
@@ -135,4 +135,6 @@ Mat getAndClearRecordedImages() {
 
 void saveRecordedImages(const string& filename) {
     imwrite(filename, getAndClearRecordedImages());
+}
+
 }

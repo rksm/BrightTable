@@ -3,6 +3,9 @@
 
 #include <opencv2/opencv.hpp>
 
+namespace cvhelper
+{
+
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // helpers
 template<typename NumType>
@@ -30,7 +33,8 @@ template void drawPointsConnected<cv::Point2f >(std::vector<cv::Point2f >, cv::M
 template void drawPointsConnected<cv::Point >(std::vector<cv::Point >, cv::Mat&);
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-cv::Mat resizeToFit(cv::Mat, int, int);
+void resizeToFit(cv::Mat&, cv::Mat&, int, int);
+
 const cv::Scalar randomColor();
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -39,5 +43,6 @@ void recordImage(const cv::Mat, std::string);
 void saveRecordedImages(const std::string&);
 cv::Mat getAndClearRecordedImages();
 
+}
 
 #endif  // CV_HELPER_H_

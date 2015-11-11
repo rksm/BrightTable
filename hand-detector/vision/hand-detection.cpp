@@ -45,7 +45,7 @@ Mat prepareForContourDetection(
   bool renderDebugImages = false)
 {
 
-    if (renderDebugImages) recordImage(src, "orig");
+    if (renderDebugImages) cvhelper::recordImage(src, "orig");
 
     // Mat dst = Mat::zeros(src.size(), CV_8UC1);
     Size size = src.size();
@@ -56,14 +56,14 @@ Mat prepareForContourDetection(
     // blur(src_gray, dst, Size(4,4));
     // equalizeHist(dst, dst);
     medianBlur(dst, dst, 11);
-    // if (renderDebugImages) recordImage(dst, "blur");
+    // if (renderDebugImages) cvhelper::recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     threshold(dst, dst, 100, 255, CV_THRESH_BINARY_INV);
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
-    // if (renderDebugImages) recordImage(dst, "threshold");
+    // if (renderDebugImages) cvhelper::recordImage(dst, "threshold");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), 5);
@@ -75,12 +75,12 @@ Mat prepareForContourDetection(
     rectangle(dst, Point(0, 0), Point(size.width, cropWidth), black, CV_FILLED);
     rectangle(dst, Point(size.width - cropWidth, 0), Point(size.width, size.height), black, CV_FILLED);
     rectangle(dst, Point(0, size.height - cropWidth), Point(size.width, size.height), black, CV_FILLED);
-    // if (renderDebugImages) recordImage(dst, "dilate");
+    // if (renderDebugImages) cvhelper::recordImage(dst, "dilate");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     /// Canny detector
     // Canny(dst, dst, lowThreshold, lowThreshold*ratio, kernel_size);
-    // if (renderDebugImages) recordImage(dst, "canny");
+    // if (renderDebugImages) cvhelper::recordImage(dst, "canny");
 
     return dst;
 }
@@ -258,7 +258,7 @@ vector<Finger> findFingerTips(
   // have another (pointing) finger
 
   Mat debug(innerBounds.size(), CV_8UC3);
-  auto color = randomColor();
+  auto color = cvhelper::randomColor();
 
   if (defects.empty()) return vector<Finger>();
 
@@ -291,13 +291,13 @@ vector<Finger> findFingerTips(
     {
       Point mid = it->onHullStart + (it2->onHullEnd - it->onHullStart) * .5;        
       Finger f{it->defect, it2->defect, mid};
-      if (radToDeg(f.angle()) < 89) result.push_back(f);
+      if (cvhelper::radToDeg(f.angle()) < 89) result.push_back(f);
     }
     if (norm(it->onHullEnd - it2->onHullStart) < fingerTipWidth)
     {
       Point mid = it->onHullEnd + (it2->onHullStart - it->onHullEnd) * .5;        
       Finger f{it->defect, it2->defect, mid};
-      if (radToDeg(f.angle()) < 89) result.push_back(f);
+      if (cvhelper::radToDeg(f.angle()) < 89) result.push_back(f);
     }
   }
   // std::cout << result.size() << std::endl;
@@ -362,7 +362,7 @@ vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugI
         });
 
         if (renderDebugImages) {
-          auto color = randomColor();
+          auto color = cvhelper::randomColor();
           drawContours(debugImage, contours, i, color, 2, 8, hierarchy, 0, Point());
           
           drawRect(debugImage, CV_RGB(0,255,0), handContour.bounds);
@@ -392,7 +392,7 @@ vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugI
     }
 
     if (renderDebugImages) {
-      recordImage(debugImage, "hand data");
+      cvhelper::recordImage(debugImage, "hand data");
       debugImage.copyTo(contourImg);
     }
 
@@ -409,7 +409,8 @@ const int maxImageHeight = 1000;
 
 FrameWithHands processFrame(Mat &src, Mat &out, bool renderDebugImages)
 {
-  Mat resized = resizeToFit(src, maxImageWidth, maxImageHeight);
+  Mat resized;
+  cvhelper::resizeToFit(src, resized, maxImageWidth, maxImageHeight);
   Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
   vector<HandData> hands = findContours(thresholded, out, renderDebugImages);
   return FrameWithHands {std::time(nullptr), src.size(), hands};

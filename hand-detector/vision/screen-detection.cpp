@@ -16,7 +16,7 @@ void prepareImage(const Mat &imgIn, Mat &imgOut)
   if (imgIn.type() == CV_8UC3) cvtColor(imgIn, imgOut, CV_BGR2GRAY);
   else imgIn.copyTo(imgOut);
   medianBlur(imgOut, imgOut, 21);
-  threshold(imgOut, imgOut, 100, 255, CV_THRESH_BINARY);
+  threshold(imgOut, imgOut, 100, 245, CV_THRESH_BINARY);
   // cvtColor(imgOut, imgOut, CV_RGB2GRAY);
 }
 
@@ -26,7 +26,7 @@ Mat extractContours(const Mat &imgIn, bool debugRecordings)
   Mat dst = Mat::zeros(imgIn.size(), CV_8UC1);
   Mat contourDst = Mat::zeros(imgIn.size(), CV_8UC1);
   prepareImage(imgIn, dst);
-  if (debugRecordings) recordImage(dst, "prep");
+  if (debugRecordings) cvhelper::recordImage(dst, "prep");
 
   vector<vector<cv::Point>> contours;
   vector<cv::Vec4i> hierarchy;
@@ -44,8 +44,8 @@ Mat extractContours(const Mat &imgIn, bool debugRecordings)
 
   vector<Point> hullPoints;
   convexHull(contours[biggestI], hullPoints);
-  drawPointsConnected<Point>(hullPoints, contourDst);
-  if (debugRecordings) recordImage(contourDst, "contour");
+  cvhelper::drawPointsConnected<Point>(hullPoints, contourDst);
+  if (debugRecordings) cvhelper::recordImage(contourDst, "contour");
 
   return contourDst;
 }
@@ -97,9 +97,9 @@ vector<cv::Vec4i> findLinesOfLargestRect(Mat src, bool debugRecordings)
   if (debugRecordings)
   {
     for (auto l : lines) {
-      line(src, Point(l[0], l[1]), Point(l[2], l[3]), randomColor(), 3, CV_AA);
+      line(src, Point(l[0], l[1]), Point(l[2], l[3]), cvhelper::randomColor(), 3, CV_AA);
     }
-    recordImage(src, "lines");
+    cvhelper::recordImage(src, "lines");
   }
   return lines;
 }
@@ -118,6 +118,6 @@ Mat extractLargestRectangle(Mat src, cv::Size size, bool debugRecordings)
   Mat proj = screenProjection(src, size, debugRecordings);
   cv::Mat projected = cv::Mat::zeros(size.width, size.height, CV_8UC3);
   cv::warpPerspective(src, projected, proj, size);
-  if (debugRecordings) recordImage(projected, "projection");
+  if (debugRecordings) cvhelper::recordImage(projected, "projection");
   return projected;
 }

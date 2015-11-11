@@ -80,7 +80,7 @@ std::vector<Point2f> findCorners(vector<Vec4i> lines)
       if (pt.x >= 0 && pt.y >= 0) {
           Point2f p1(lines[i][0],lines[i][1]),
                   p2(lines[j][0],lines[j][1]);
-          float angle = radToDeg(angleBetween(p1, p2, pt));
+          float angle = cvhelper::radToDeg(cvhelper::angleBetween(p1, p2, pt));
           // std::cout << angle << std::endl;
           if ((angle > 60) && (angle < 140)) corners.push_back(pt);
       }
@@ -168,7 +168,7 @@ Mat projectLinesTransform(vector<Vec4i> lines, Rect fromRect, Rect intoRect)
   // for (auto p : corners) {
   //   circle(area, p, 10, cv::Scalar(255,0,0), 3);
   // }
-  // recordImage(area, "??????");
+  // cvhelper::recordImage(area, "??????");
 
   // assert(all_of(corners.begin(), corners.end(),
   //   [&](cv::Point2f p){ return fromRect.contains(p); }));

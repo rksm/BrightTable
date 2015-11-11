@@ -12,7 +12,7 @@ using cv::imread;
 
 Mat transformFrame(Mat input, cv::Size tfmedSize, Mat &proj)
 {
-  input = resizeToFit(input, 700, 700);
+  cvhelper::resizeToFit(input, input, 700, 700);
   cv::Mat output = Mat(tfmedSize, CV_8UC3);
   cv::warpPerspective(input, output, proj, output.size());
   return output;
@@ -31,8 +31,8 @@ int main(int argc, char** argv)
   // const string mode = "recognize-test-files";
   // const string mode = "recognize-one-video-frame";
   // const string mode = "transform-screen-and-recognize-file";
-  // const string mode = "transform-screen-file";
-  const string mode = "convert-video";
+  const string mode = "transform-screen-file";
+  // const string mode = "convert-video";
 
   if (mode == "capture-one-video-frame")
   {
@@ -46,32 +46,35 @@ int main(int argc, char** argv)
       for (;;)
       {
         cap >> frame;
-        Mat result = extractLargestRectangle(resizeToFit(frame, 500, 500), cv::Size(1000,1000), true);
-        // imshow("out", resizeToFit(getAndClearRecordedImages(), 1400, 500));
+        cvhelper::resizeToFit(frame, frame, 500, 500)
+        Mat result = extractLargestRectangle(frame, cv::Size(1000,1000), true);
+        // imshow("out", cvhelper::resizeToFit(cvhelper::getAndClearRecordedImages(), 1400, 500));
         imshow("out", result);
         if (cv::waitKey(30) >= 0) break;
       }
   }
   else if (mode == "transform-screen-file")
   {
-    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/other-webcam.png"};
+    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-4.png"};
     // vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
-      Mat input = resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700); 
+      Mat input = cv::imread(file, CV_LOAD_IMAGE_COLOR);
+      cvhelper::resizeToFit(input, input, 700, 700); 
       Mat result = extractLargestRectangle(input, tfmedSize, true);
       cv::Mat proj = screenProjection(input, tfmedSize, true);
       std::cout << proj << std::endl;
       imwrite(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed.png"), result);
-      saveRecordedImages(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed-debug.png"));
+      cvhelper::saveRecordedImages(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed-debug.png"));
     }
   }
   else if (mode == "transform-screen-and-recognize-file")
   {
-    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/other-webcam-issue-2.png"};
+    vector<string> testFiles{"/Users/robert/Lively/LivelyKernel2/opencv-test/test-images/hand-test-white-4.png"};
     // vector<string> testFiles = findTestFiles(regex("^hand-test-white-[0-9]+\\.[a-z]+$"));
     for (auto file : testFiles) {
-      cv::Mat input = resizeToFit(cv::imread(file, CV_LOAD_IMAGE_COLOR), 700, 700);
-      // cv::Mat proj = screenProjection(input, tfmedSize, true);
+      cv::Mat input = cv::imread(file, CV_LOAD_IMAGE_COLOR);
+      cvhelper::resizeToFit(input, input, 700, 700);
+      cv::Mat proj = screenProjection(input, tfmedSize, true);
 
       // cv::Mat proj = cv::Mat::zeros(3,3, CV_32FC1);
       // proj.at<float>(0,0) = 1.311824869288347;
@@ -84,23 +87,23 @@ int main(int argc, char** argv)
       // proj.at<float>(2,1) = 0.0005972594927079796;
       // proj.at<float>(2,2) = 1;
 
-      cv::Mat proj = cv::Mat::zeros(3,3, CV_32FC1);
-      proj.at<float>(0,0) = 1.652389079784966;
-      proj.at<float>(0,1) = 0.5326780287383337;
-      proj.at<float>(0,2) = -222.7898690137106;;
-      proj.at<float>(1,0) = -0.0363833634945249;
-      proj.at<float>(1,1) = 1.649966529588601;
-      proj.at<float>(1,2) = -15.15386596733211;
-      proj.at<float>(2,0) = -8.42207531049395e-05;
-      proj.at<float>(2,1) = 0.001051777679467157;
-      proj.at<float>(2,2) = 1;
+      // cv::Mat proj = cv::Mat::zeros(3,3, CV_32FC1);
+      // proj.at<float>(0,0) = 1.652389079784966;
+      // proj.at<float>(0,1) = 0.5326780287383337;
+      // proj.at<float>(0,2) = -222.7898690137106;;
+      // proj.at<float>(1,0) = -0.0363833634945249;
+      // proj.at<float>(1,1) = 1.649966529588601;
+      // proj.at<float>(1,2) = -15.15386596733211;
+      // proj.at<float>(2,0) = -8.42207531049395e-05;
+      // proj.at<float>(2,1) = 0.001051777679467157;
+      // proj.at<float>(2,2) = 1;
 
 
       cv::Mat output = transformFrame(input, tfmedSize, proj);
       processFrame(output, output, true);
 
       imwrite(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed.png"), output);
-      saveRecordedImages(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed-debug.png"));
+      cvhelper::saveRecordedImages(regex_replace(file, regex("\\.[a-z]+$"), "-tfmed-debug.png"));
       std::cout << proj << std::endl;
     }
   }
@@ -120,7 +123,7 @@ int main(int argc, char** argv)
           Mat in = cv::imread(file, CV_LOAD_IMAGE_COLOR),
               out = Mat::zeros(frame.size(), frame.type());
           FrameWithHands handData = processFrame(in, out, true);
-          saveRecordedImages(std::regex_replace(file, regex(".png$"), "-debug.png"));
+          cvhelper::saveRecordedImages(std::regex_replace(file, regex(".png$"), "-debug.png"));
           std::cout
             << frameWithHandsToJSONString(handData)
             << std::endl;
@@ -135,7 +138,8 @@ int main(int argc, char** argv)
     // 1. define screen area...
     for(;;) {
       cap >> frame;
-      imshow("out", resizeToFit(frame, 700,700));
+      cvhelper::resizeToFit(frame, frame, 700,700);
+      imshow("out", frame);
       if (cv::waitKey(30) >= 0) break;
     }
 
@@ -143,7 +147,7 @@ int main(int argc, char** argv)
     for(;;) {
       cap >> frame;
       // show transformed area to check the projection...
-      frame = resizeToFit(frame, 700, 700);
+      cvhelper::resizeToFit(frame, frame, 700, 700);
       proj = screenProjection(frame, tfmedSize, debug);
       if ((proj.at<int>(0,0) != 0) && (proj.at<int>(0,1) != 0)) break;
       if (cv::waitKey(30) >= 0) break;
@@ -152,8 +156,9 @@ int main(int argc, char** argv)
     for(;;) {
       // std::cout << proj << std::endl;
       Mat output = transformFrame(frame, tfmedSize, proj);
-      // imshow("out", resizeToFit(getAndClearRecordedImages(), 820, 820));
-      imshow("out", resizeToFit(output, 700,700));
+      // imshow("out", cvhelper::resizeToFit(cvhelper::getAndClearRecordedImages(), 820, 820));
+      cvhelper::resizeToFit(output, output, 700,700);
+      imshow("out", output);
       if (cv::waitKey(30) >= 0) break;
     }
 
@@ -163,11 +168,14 @@ int main(int argc, char** argv)
     {
       cap.read(frame);
       // std::cout << timeToRunMs([&](){
-        Mat output = transformFrame(resizeToFit(frame, 700, 700), tfmedSize, proj);
+        cvhelper::resizeToFit(frame, frame, 700, 700)
+        Mat output = transformFrame(frame, tfmedSize, proj);
         auto handData = processFrame(output, output, debug);
         std::cout << frameWithHandsToJSONString(handData) << std::endl;
       // }).count() << std::endl;
-      imshow("out", resizeToFit(getAndClearRecordedImages(), 1400,1400));
+      Mat recorded = cvhelper::getAndClearRecordedImages();
+      cvhelper::resizeToFit(recorded, recorded, 1400,1400);
+      imshow("out", recorded);
       if (cv::waitKey(10) >= 0) break;
 
       // auto now = clock.now();
