@@ -17,7 +17,10 @@ void startServer(string host, int port, string id)
 {
 
   auto server = l2l::startServer(host, port, id, l2l::Services {
-    l2l::createLambdaService("capture-camera", handdetection::server::captureCameraService)
+    l2l::createLambdaService("capture-camera", handdetection::server::captureCameraService),
+    l2l::createLambdaService("upload-image", handdetection::server::uploadImageService),
+    l2l::createLambdaService("recognize-screen-corners", handdetection::server::recognizeScreenCornersService),
+    l2l::createLambdaService("screen-corner-projection", handdetection::server::screenCornersTransform)
   });
   server->debug = true;
 }

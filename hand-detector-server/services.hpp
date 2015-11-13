@@ -10,6 +10,9 @@ namespace handdetection {
 namespace server {
   
 void captureCameraService(Json::Value msg, Server server);
+void uploadImageService(Json::Value msg, Server server);
+void recognizeScreenCornersService(Json::Value msg, Server server);
+void screenCornersTransform(Json::Value msg, Server server);
 
 }
 }
