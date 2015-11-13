@@ -14,6 +14,18 @@ fromMat into toMat
 
 struct Corners
 {
+  Corners() : Corners(0,0,0,0,0,0,0,0) {};
+  Corners(cv::Point2f tl,cv::Point2f tr,cv::Point2f br,cv::Point2f bl) :
+    topLeft(tl), topRight(tr), bottomRight(br), bottomLeft(bl) {};
+  Corners(
+    float tlX, float tlY,
+    float trX, float trY,
+    float brX, float brY,
+    float blX, float blY) :
+      topLeft(cv::Point2f(tlX, tlY)),
+      topRight(cv::Point2f(trX, trY)),
+      bottomRight(cv::Point2f(brX, brY)),
+      bottomLeft(cv::Point2f(blX, blY)) {};
   cv::Point2f topLeft;
   cv::Point2f topRight;
   cv::Point2f bottomRight;
@@ -23,6 +35,7 @@ struct Corners
   bool operator==(const Corners &other) const;
 };
 
-cv::Mat projectLinesTransform(std::vector<cv::Vec4i>,  cv::Rect, cv::Rect);
+cv::Mat cornerTransform(Corners &corners,  cv::Rect&);
+Corners findCorners(std::vector<cv::Vec4i>&, cv::Rect&);
 
 #endif  // QUAD_TRANSFORM_H_INCLUDE

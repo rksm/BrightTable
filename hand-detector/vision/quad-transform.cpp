@@ -9,7 +9,7 @@ std::vector<cv::Point2f> Corners::asVector() {
     topLeft,topRight,bottomRight,bottomLeft};
 };
 
-bool Corners::empty() const { Corners empty{}; return &empty == this; };
+bool Corners::empty() const { Corners empty; return &empty == this; };
 
 bool Corners::operator==(const Corners &other) const {
   return topLeft == other.topLeft
@@ -43,7 +43,7 @@ Point2f computeIntersect(Vec4i a, Vec4i b)
 }
 
 // // http://opencv-code.com/tutorials/automatic-perspective-correction-for-quadrilateral-objects/
-// std::vector<Point2f> findCorners(vector<Vec4i> lines)
+// std::vector<Point2f> findBoundingBoxPoints(vector<Vec4i> lines)
 // {
 //   std::vector<Point2f> corners;
 //   for (int i = 0; i < lines.size(); i++)
@@ -68,7 +68,7 @@ bool similarSlope(Vec4i l1, Vec4i l2) {
   return (std::max(slope1, slope2) - std::min(slope1, slope2)) < slopeEps;
 }
 
-std::vector<Point2f> findCorners(vector<Vec4i> lines)
+std::vector<Point2f> findBoundingBoxPoints(vector<Vec4i> &lines)
 {
   // returns cloud of points. We later analyze it to find the 4 real corners
   std::vector<Point2f> corners;
@@ -135,12 +135,12 @@ Corners pointsSorted(vector<Point2f> &boundingBoxPoints, Rect fromRect)
   return sortBoundingBoxPoints(boundingBoxPoints, center, fromRect);
 }
 
-Mat boundingBoxPointsToRectTransform(vector<Point2f> &boundingBoxPoints, Rect fromRect, Rect destBounds)
+Mat cornerTransform(Corners &corners, Rect &destBounds)
 {
-  // Corners = four points defining a quadrilateral; width, height defining a
-  // target rectangle
+  // Corners = four points defining a quadrilateral,
+  // destBounds defines the rectangle of which the area defined by corners
+  // should be transformed
 
-  Corners corners = pointsSorted(boundingBoxPoints, fromRect);
   if (corners.empty()) return Mat::eye(3,3,CV_32F);
 
   // std::cout << corners << std::endl;
@@ -152,26 +152,13 @@ Mat boundingBoxPointsToRectTransform(vector<Point2f> &boundingBoxPoints, Rect fr
   };
 
   // Get transformation matrix
-  // std::rotate(corners.rbegin(), corners.rbegin() + 1, corners.rend());
   return cv::getPerspectiveTransform(corners.asVector(), quadPoints);
 }
 
-Mat projectLinesTransform(vector<Vec4i> lines, Rect fromRect, Rect intoRect)
+Corners findCorners(vector<Vec4i> &lines, Rect &fromRect)
 {
-  // takes a set of (quadrilateral) lines and returns a perspective transform
-  // to map stuff into the area defined by intoRect
-  vector<Point2f> corners = findCorners(lines);
-  corners.erase(std::remove_if(corners.begin(), corners.end(),
-    [&](Point2f p) { return !fromRect.contains(p); }), corners.end());
-
-  // Mat area = Mat::zeros(fromRect.size(), CV_8UC1);
-  // for (auto p : corners) {
-  //   circle(area, p, 10, cv::Scalar(255,0,0), 3);
-  // }
-  // cvhelper::recordImage(area, "??????");
-
-  // assert(all_of(corners.begin(), corners.end(),
-  //   [&](cv::Point2f p){ return fromRect.contains(p); }));
-
-  return boundingBoxPointsToRectTransform(corners, fromRect,intoRect);
+  auto pts = findBoundingBoxPoints(lines);
+  pts.erase(std::remove_if(pts.begin(), pts.end(),
+    [&](Point2f p) { return !fromRect.contains(p); }), pts.end());
+  return pointsSorted(pts, fromRect);
 }

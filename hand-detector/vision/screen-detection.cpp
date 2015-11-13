@@ -89,7 +89,7 @@ vector<cv::Vec4i> detectLines(Mat &imgIn)
   }
 }
 
-vector<cv::Vec4i> findLinesOfLargestRect(Mat src, bool debugRecordings)
+vector<cv::Vec4i> findLinesOfLargestRect(Mat &src, bool debugRecordings)
 {
   Mat contours = extractContours(src, debugRecordings);
   vector<cv::Vec4i> lines = detectLines(contours);
@@ -104,20 +104,33 @@ vector<cv::Vec4i> findLinesOfLargestRect(Mat src, bool debugRecordings)
   return lines;
 }
 
-Mat screenProjection(Mat src, cv::Size size, bool debugRecordings)
+Mat screenProjection(Mat &src, cv::Size size, bool debugRecordings)
 {
-  // cv::Mat projectLinesTransform(std::vector<cv::Vec4i>&,  cv::Rect, cv::Rect);
-  return projectLinesTransform(
-          findLinesOfLargestRect(src, debugRecordings),
-          cv::Rect(cv::Point(0,0), src.size()),
-          cv::Rect(cv::Point(0,0), size));
+  auto lines = findLinesOfLargestRect(src, debugRecordings);
+  auto from = cv::Rect(cv::Point(0,0), src.size());
+  auto into = cv::Rect(cv::Point(0,0), size);
+  auto corners = findCorners(lines, from);
+  auto tfm = cornerTransform(corners, into);
+  return tfm;
 }
 
-Mat extractLargestRectangle(Mat src, cv::Size size, bool debugRecordings)
+Mat applyScreenProjection(cv::Mat &in, cv::Mat &projection, cv::Size size, bool debugRecordings)
 {
-  Mat proj = screenProjection(src, size, debugRecordings);
   cv::Mat projected = cv::Mat::zeros(size.width, size.height, CV_8UC3);
-  cv::warpPerspective(src, projected, proj, size);
+  cv::warpPerspective(in, projected, projection, size);
   if (debugRecordings) cvhelper::recordImage(projected, "projection");
   return projected;
+}
+
+Mat extractLargestRectangle(Mat &src, cv::Size size, bool debugRecordings)
+{
+  Mat proj = screenProjection(src, size, debugRecordings);
+  return applyScreenProjection(src, proj, size, debugRecordings);
+}
+
+Corners cornersOfLargestRect(Mat &src, bool debugRecordings)
+{
+  auto lines = findLinesOfLargestRect(src, debugRecordings);
+  auto bounds = cv::Rect(cv::Point(0,0), src.size());
+  return findCorners(lines, bounds);
 }

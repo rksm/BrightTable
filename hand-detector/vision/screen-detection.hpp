@@ -7,7 +7,9 @@
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // screen detection
 
-cv::Mat extractLargestRectangle(cv::Mat, cv::Size, bool = false);
-cv::Mat screenProjection(cv::Mat, cv::Size, bool = false);
+cv::Mat extractLargestRectangle(cv::Mat&, cv::Size, bool = false);
+cv::Mat screenProjection(cv::Mat&, cv::Size, bool = false);
+Corners cornersOfLargestRect(cv::Mat&, bool = false);
+cv::Mat applyScreenProjection(cv::Mat&, cv::Mat&, cv::Size, bool = false);
 
 #endif  // SCREEN_DETECTION_H_
