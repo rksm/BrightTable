@@ -2,6 +2,10 @@
 #include <numeric>
 #include <algorithm>
 
+
+namespace vision {
+namespace hand {
+
 using namespace cv;
 
 using PointV = vector<Point>;
@@ -11,15 +15,6 @@ const Scalar GREEN = Scalar(0,   255, 0);
 const Scalar BLUE  = Scalar(0,   0,   255);
 const Scalar WHITE = Scalar(255, 255, 255);
 const Scalar BLACK = Scalar(0,   0,   0);
-
-int lowThreshold = 50;
-int const max_lowThreshold = 100;
-int ratio = 3;
-int kernel_size = 3;
-
-// How far apart can convexity defect hull points lay apart to still be
-// considered as one fingertip?
-const int fingerTipWidth = 50; 
 
 template<typename PointType>
 PointType meanPos(vector<PointType> points)
@@ -42,6 +37,7 @@ struct ConvexityDefect
 
 Mat prepareForContourDetection(
   Mat &src,
+  Options opts,
   bool renderDebugImages = false)
 {
 
@@ -55,21 +51,22 @@ Mat prepareForContourDetection(
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     // blur(src_gray, dst, Size(4,4));
     // equalizeHist(dst, dst);
-    medianBlur(dst, dst, 11);
+    medianBlur(dst, dst, opts.blurIntensity);
     // if (renderDebugImages) cvhelper::recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    threshold(dst, dst, 100, 255, CV_THRESH_BINARY_INV);
+    threshold(dst, dst, opts.thresholdMin, opts.thresholdMax, opts.thresholdType);
+    
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
     // if (renderDebugImages) cvhelper::recordImage(dst, "threshold");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), 5);
+    dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), opts.dilateIterations);
 
     // "crop" the image...
-    int cropWidth = 12;
+    int cropWidth = opts.cropWidth;
     auto black = Scalar(0,0,0);
     rectangle(dst, Point(0, 0), Point(cropWidth, size.height), black, CV_FILLED);
     rectangle(dst, Point(0, 0), Point(size.width, cropWidth), black, CV_FILLED);
@@ -249,7 +246,8 @@ void drawConvexityDefects(
 vector<Finger> findFingerTips(
     const vector<ConvexityDefect> &defects,
     const PointV &hullPoints,
-    const Rect innerBounds)
+    const Rect innerBounds,
+    Options opts)
 {
   // Guess 1: if angle from defect point to the two connecting hull points is
   // sharp it is probably a finger
@@ -268,7 +266,7 @@ vector<Finger> findFingerTips(
     line(debug, d1.onHullStart, d2.defect, CV_RGB(255,100,0), 3);
     line(debug, d1.onHullStart, d1.defect, CV_RGB(100,255,0), 3);
     std::cout << d1.onHullEnd << d2.onHullStart << std::endl;
-    if (norm(d1.onHullEnd - d2.onHullStart) > fingerTipWidth)
+    if (norm(d1.onHullEnd - d2.onHullStart) > opts.fingerTipWidth)
     {
       d2.onHullStart = d1.onHullEnd;
     }
@@ -287,13 +285,13 @@ vector<Finger> findFingerTips(
   auto it2 = defectsCopy.begin();
   for (auto it = defects.begin(); it != defects.end(); it++, it2++) {
     // std::cout << norm(it->onHullStart - it2->onHullEnd) << "...." << norm(it->onHullEnd - it2->onHullStart) << std::endl;
-    if (norm(it->onHullStart - it2->onHullEnd) < fingerTipWidth)
+    if (norm(it->onHullStart - it2->onHullEnd) < opts.fingerTipWidth)
     {
       Point mid = it->onHullStart + (it2->onHullEnd - it->onHullStart) * .5;        
       Finger f{it->defect, it2->defect, mid};
       if (cvhelper::radToDeg(f.angle()) < 89) result.push_back(f);
     }
-    if (norm(it->onHullEnd - it2->onHullStart) < fingerTipWidth)
+    if (norm(it->onHullEnd - it2->onHullStart) < opts.fingerTipWidth)
     {
       Point mid = it->onHullEnd + (it2->onHullStart - it->onHullEnd) * .5;        
       Finger f{it->defect, it2->defect, mid};
@@ -305,7 +303,10 @@ vector<Finger> findFingerTips(
   return result;
 }
 
-vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugImages = false)
+vector<HandData> findContours(
+  const Mat &src,
+  Mat &contourImg,
+  bool renderDebugImages = false)
 {
     vector<HandData> result;
     vector<Vec4i> hierarchy;
@@ -350,9 +351,13 @@ vector<HandData> findContours(const Mat &src, Mat &contourImg, bool renderDebugI
         {
           sort(defectData.begin(), defectData.end(),
             [&](ConvexityDefect a, ConvexityDefect b){
-              return norm(a.defect - handContour.pointTowards) < norm(b.defect - handContour.pointTowards);
+              return norm(a.defect - handContour.pointTowards)
+                   < norm(b.defect - handContour.pointTowards);
             });
-          fingers.push_back(Finger{defectData[0].defect, defectData[1].defect, handContour.pointTowards});
+          fingers.push_back(Finger{
+            defectData[0].defect,
+            defectData[1].defect,
+            handContour.pointTowards});
         }
 
         result.push_back(HandData{
@@ -407,11 +412,14 @@ const int LOW = 150;
 const int maxImageWidth = 1000;
 const int maxImageHeight = 1000;
 
-FrameWithHands processFrame(Mat &src, Mat &out, bool renderDebugImages)
+void processFrame(Mat &src, Mat &out, FrameWithHands &handsFound, Options opts, bool renderDebugImages)
 {
   Mat resized;
   cvhelper::resizeToFit(src, resized, maxImageWidth, maxImageHeight);
-  Mat thresholded = prepareForContourDetection(resized, renderDebugImages);
+  Mat thresholded = prepareForContourDetection(resized, opts, renderDebugImages);
   vector<HandData> hands = findContours(thresholded, out, renderDebugImages);
-  return FrameWithHands {std::time(nullptr), src.size(), hands};
+  handsFound = FrameWithHands {std::time(nullptr), src.size(), hands};
 }
+
+} // hand
+} // vision

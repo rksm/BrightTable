@@ -8,6 +8,22 @@
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // hand detection
 
+namespace vision {
+namespace hand {
+
+struct Options
+{
+  // How far apart can convexity defect hull points lay apart to still be
+  // considered as one fingertip?
+  int fingerTipWidth = 50;
+  int blurIntensity = 11;
+  int thresholdMin = 100;
+  int thresholdMax = 245;
+  int thresholdType = CV_THRESH_BINARY_INV;
+  int dilateIterations = 5;
+  int cropWidth = 12;
+};
+
 struct HandContour
 {
   cv::RotatedRect bounds;
@@ -50,9 +66,12 @@ struct FrameWithHands {
   std::vector<HandData> hands;
 };
 
-FrameWithHands processFrame(cv::Mat&, cv::Mat&, bool = false);
+void processFrame(cv::Mat&, cv::Mat&, FrameWithHands&, Options, bool = false);
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-std::string frameWithHandsToJSONString(FrameWithHands data);
+std::string frameWithHandsToJSONString(FrameWithHands &data);
+
+}
+}
 
 #endif  // LIVE_TABLE_HAND_DETECTION_H_

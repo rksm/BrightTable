@@ -112,7 +112,8 @@ int main(int argc, char** argv)
       cv::VideoCapture cap = cv::VideoCapture(videoDevNo);
       cap.read(frame);
       Mat out = Mat::zeros(frame.size(), frame.type());
-      auto handData = processFrame(frame, out, true);
+      FrameWithHands handData;
+      processFrame(frame, out, handData, true);
       std::cout << frameWithHandsToJSONString(handData) << std::endl;
   }
   else if (mode == "recognize-test-files")
@@ -122,7 +123,8 @@ int main(int argc, char** argv)
       for (auto file : testFiles) {
           Mat in = cv::imread(file, CV_LOAD_IMAGE_COLOR),
               out = Mat::zeros(frame.size(), frame.type());
-          FrameWithHands handData = processFrame(in, out, true);
+          FrameWithHands handData;
+          processFrame(in, out, handData, true);
           cvhelper::saveRecordedImages(std::regex_replace(file, regex(".png$"), "-debug.png"));
           std::cout
             << frameWithHandsToJSONString(handData)
@@ -170,7 +172,8 @@ int main(int argc, char** argv)
       // std::cout << timeToRunMs([&](){
         cvhelper::resizeToFit(frame, frame, 700, 700)
         Mat output = transformFrame(frame, tfmedSize, proj);
-        auto handData = processFrame(output, output, debug);
+        FrameWithHands handData;
+        processFrame(output, output, handData, debug);
         std::cout << frameWithHandsToJSONString(handData) << std::endl;
       // }).count() << std::endl;
       Mat recorded = cvhelper::getAndClearRecordedImages();

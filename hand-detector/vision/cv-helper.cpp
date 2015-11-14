@@ -65,24 +65,22 @@ void drawText(string text, Mat frame) {
     putText(frame, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
 }
 
-void resizeToFit(Mat &in, Mat &out, int maxWidth, int maxHeight)
+void resizeToFit(Mat &in, Mat &out, float maxWidth, float maxHeight)
 {
-  float height = in.rows, width = in.cols;
-  if (width <= maxWidth && height <= maxHeight)
-  {
-    if (&in != &out) out = in;
-    return;
-  }
+  cv::Size size = in.size();
+  if (size.width <= maxWidth && size.height <= maxHeight)
+  { if (&in != &out) out = in; return; }
 
-  if (height > maxHeight) {
-    width = round(width * (maxHeight / height));
-    height = maxHeight;
+  float h = size.height, w = size.width;
+  if (h > maxHeight) {
+    w = round(w * (maxHeight / h));
+    h = maxHeight;
   }
-  if (width > maxWidth) {
-    height = round(height * (maxWidth / width));
-    width = maxWidth;
+  if (w > maxWidth) {
+    h = round(h * (maxWidth / w));
+    w = maxWidth;
   }
-  resize(in, out, Size(width, height));
+  resize(in, out, Size(w,h));
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

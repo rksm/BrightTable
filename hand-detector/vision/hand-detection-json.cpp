@@ -1,6 +1,9 @@
 #include "vision/hand-detection.hpp"
 #include "json/json.h"
 
+namespace vision {
+namespace hand {
+
 Json::Value convert(cv::Point data) {
   Json::Value json;
   json["x"] = data.x;
@@ -55,7 +58,10 @@ Json::Value convert(FrameWithHands data) {
   return json;
 }
 
-std::string frameWithHandsToJSONString(FrameWithHands data) {
+std::string frameWithHandsToJSONString(FrameWithHands &data) {
   Json::FastWriter writer;
   return writer.write(convert(data));
+}
+
+}
 }

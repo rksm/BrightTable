@@ -5,32 +5,37 @@
 #include <numeric>
 #include <algorithm>
 
+
 using std::vector;
 using cv::Mat;
 using cv::Point;
 
+namespace vision {
+namespace screen {
+
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-void prepareImage(const Mat &imgIn, Mat &imgOut)
+void prepareImage(const Mat &imgIn, Mat &imgOut, Options opts)
 {
   if (imgIn.type() == CV_8UC3) cvtColor(imgIn, imgOut, CV_BGR2GRAY);
   else imgIn.copyTo(imgOut);
-  medianBlur(imgOut, imgOut, 21);
-  threshold(imgOut, imgOut, 100, 245, CV_THRESH_BINARY);
+  medianBlur(imgOut, imgOut, opts.blurIntensity);
+  threshold(imgOut, imgOut, opts.minThreshold, opts.maxThreshold, opts.thresholdType);
   // cvtColor(imgOut, imgOut, CV_RGB2GRAY);
 }
 
-Mat extractContours(const Mat &imgIn, bool debugRecordings)
+Mat extractContours(const Mat &imgIn, Options opts, bool debugRecordings)
 {
-  
   Mat dst = Mat::zeros(imgIn.size(), CV_8UC1);
   Mat contourDst = Mat::zeros(imgIn.size(), CV_8UC1);
-  prepareImage(imgIn, dst);
+  prepareImage(imgIn, dst, opts);
   if (debugRecordings) cvhelper::recordImage(dst, "prep");
 
   vector<vector<cv::Point>> contours;
   vector<cv::Vec4i> hierarchy;
   findContours(dst, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_TC89_L1, Point(0, 0));
+
+  if (contours.empty()) return contourDst;
 
   double area = 0;
   int biggestI = 0;
@@ -50,14 +55,14 @@ Mat extractContours(const Mat &imgIn, bool debugRecordings)
   return contourDst;
 }
 
-vector<cv::Vec4i> detectLines(Mat &imgIn)
+vector<cv::Vec4i> detectLines(Mat &imgIn, Options opts)
 {
   cv::Size size = imgIn.size();
   if (false)
   {
     vector<cv::Vec2f> lines;
     int minLineLength = std::min(size.width, size.height)*.5;
-    HoughLines(imgIn, lines, 1, CV_PI/180, 150, 0, 0);
+    HoughLines(imgIn, lines, opts.houghRho, opts.houghTheta, opts.houghMinLineLength, opts.houghMinLineGap);
 
     vector<cv::Vec4i> outLines;
     for( size_t i = 0; i < lines.size(); i++ )
@@ -89,10 +94,10 @@ vector<cv::Vec4i> detectLines(Mat &imgIn)
   }
 }
 
-vector<cv::Vec4i> findLinesOfLargestRect(Mat &src, bool debugRecordings)
+vector<cv::Vec4i> findLinesOfLargestRect(Mat &src, Options opts, bool debugRecordings)
 {
-  Mat contours = extractContours(src, debugRecordings);
-  vector<cv::Vec4i> lines = detectLines(contours);
+  Mat contours = extractContours(src, opts, debugRecordings);
+  vector<cv::Vec4i> lines = detectLines(contours, opts);
   
   if (debugRecordings)
   {
@@ -104,17 +109,17 @@ vector<cv::Vec4i> findLinesOfLargestRect(Mat &src, bool debugRecordings)
   return lines;
 }
 
-Mat screenProjection(Mat &src, cv::Size size, bool debugRecordings)
+Mat screenProjection(Mat &src, cv::Size size, Options opts, bool debugRecordings)
 {
-  auto lines = findLinesOfLargestRect(src, debugRecordings);
+  auto lines = findLinesOfLargestRect(src, opts, debugRecordings);
   auto from = cv::Rect(cv::Point(0,0), src.size());
   auto into = cv::Rect(cv::Point(0,0), size);
-  auto corners = findCorners(lines, from);
-  auto tfm = cornerTransform(corners, into);
+  auto corners = quad::findCorners(lines, from, opts.quadOptions);
+  auto tfm = quad::cornerTransform(corners, into, opts.quadOptions);
   return tfm;
 }
 
-Mat applyScreenProjection(cv::Mat &in, cv::Mat &projection, cv::Size size, bool debugRecordings)
+Mat applyScreenProjection(cv::Mat &in, cv::Mat &projection, cv::Size size, Options opts, bool debugRecordings)
 {
   cv::Mat projected = cv::Mat::zeros(size.width, size.height, CV_8UC3);
   cv::warpPerspective(in, projected, projection, size);
@@ -122,15 +127,18 @@ Mat applyScreenProjection(cv::Mat &in, cv::Mat &projection, cv::Size size, bool 
   return projected;
 }
 
-Mat extractLargestRectangle(Mat &src, cv::Size size, bool debugRecordings)
+Mat extractLargestRectangle(Mat &src, cv::Size size, Options opts, bool debugRecordings)
 {
-  Mat proj = screenProjection(src, size, debugRecordings);
-  return applyScreenProjection(src, proj, size, debugRecordings);
+  Mat proj = screenProjection(src, size, opts, debugRecordings);
+  return applyScreenProjection(src, proj, size, opts, debugRecordings);
 }
 
-Corners cornersOfLargestRect(Mat &src, bool debugRecordings)
+quad::Corners cornersOfLargestRect(Mat &src, Options opts, bool debugRecordings)
 {
-  auto lines = findLinesOfLargestRect(src, debugRecordings);
+  auto lines = findLinesOfLargestRect(src, opts, debugRecordings);
   auto bounds = cv::Rect(cv::Point(0,0), src.size());
-  return findCorners(lines, bounds);
+  return quad::findCorners(lines, bounds, opts.quadOptions);
 }
+
+} // screen
+} // vision

@@ -7,9 +7,28 @@
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // screen detection
 
-cv::Mat extractLargestRectangle(cv::Mat&, cv::Size, bool = false);
-cv::Mat screenProjection(cv::Mat&, cv::Size, bool = false);
-Corners cornersOfLargestRect(cv::Mat&, bool = false);
-cv::Mat applyScreenProjection(cv::Mat&, cv::Mat&, cv::Size, bool = false);
+namespace vision {
+namespace screen {
+
+struct Options
+{
+  int blurIntensity = 21;
+  int minThreshold = 100;
+  int maxThreshold = 245;
+  int thresholdType = CV_THRESH_BINARY;
+  int houghRho = 1;
+  float houghTheta = CV_PI / 180;
+  int houghMinLineLength = 0;
+  int houghMinLineGap = 0;
+  quad::Options quadOptions;
+};
+
+cv::Mat extractLargestRectangle(cv::Mat&, cv::Size, Options, bool = false);
+cv::Mat screenProjection(cv::Mat&, cv::Size, Options, bool = false);
+quad::Corners cornersOfLargestRect(cv::Mat&, Options, bool = false);
+cv::Mat applyScreenProjection(cv::Mat&, cv::Mat&, cv::Size, Options, bool = false);
+
+}
+}
 
 #endif  // SCREEN_DETECTION_H_

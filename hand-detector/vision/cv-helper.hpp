@@ -33,7 +33,7 @@ template void drawPointsConnected<cv::Point2f >(std::vector<cv::Point2f >, cv::M
 template void drawPointsConnected<cv::Point >(std::vector<cv::Point >, cv::Mat&);
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-void resizeToFit(cv::Mat&, cv::Mat&, int, int);
+void resizeToFit(cv::Mat&, cv::Mat&, float, float);
 
 const cv::Scalar randomColor();
 

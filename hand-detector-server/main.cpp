@@ -20,7 +20,11 @@ void startServer(string host, int port, string id)
     l2l::createLambdaService("capture-camera", handdetection::server::captureCameraService),
     l2l::createLambdaService("upload-image", handdetection::server::uploadImageService),
     l2l::createLambdaService("recognize-screen-corners", handdetection::server::recognizeScreenCornersService),
-    l2l::createLambdaService("screen-corner-projection", handdetection::server::screenCornersTransform)
+    l2l::createLambdaService("screen-corner-transform", handdetection::server::screenCornersTransform),
+    l2l::createLambdaService("screen-transform", handdetection::server::screenTransform),
+    l2l::createLambdaService("hand-detection", handdetection::server::handDetection),
+    l2l::createLambdaService("hand-detection-stream-start", handdetection::server::handDetectionStreamStart),
+    l2l::createLambdaService("hand-detection-stream-stop", handdetection::server::handDetectionStreamStop)
   });
   server->debug = true;
 }

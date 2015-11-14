@@ -13,6 +13,10 @@ void captureCameraService(Json::Value msg, Server server);
 void uploadImageService(Json::Value msg, Server server);
 void recognizeScreenCornersService(Json::Value msg, Server server);
 void screenCornersTransform(Json::Value msg, Server server);
+void screenTransform(Json::Value msg, Server server);
+void handDetection(Json::Value msg, Server server);
+void handDetectionStreamStart(Json::Value msg, Server server);
+void handDetectionStreamStop(Json::Value msg, Server server);
 
 }
 }

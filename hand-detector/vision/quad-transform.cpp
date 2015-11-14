@@ -2,6 +2,9 @@
 #include <vision/cv-helper.hpp>
 #include <algorithm>
 
+namespace vision {
+namespace quad {
+
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Corners
 std::vector<cv::Point2f> Corners::asVector() {
@@ -68,7 +71,7 @@ bool similarSlope(Vec4i l1, Vec4i l2) {
   return (std::max(slope1, slope2) - std::min(slope1, slope2)) < slopeEps;
 }
 
-std::vector<Point2f> findBoundingBoxPoints(vector<Vec4i> &lines)
+std::vector<Point2f> findBoundingBoxPoints(vector<Vec4i> &lines, Options options)
 {
   // returns cloud of points. We later analyze it to find the 4 real corners
   std::vector<Point2f> corners;
@@ -82,7 +85,9 @@ std::vector<Point2f> findBoundingBoxPoints(vector<Vec4i> &lines)
                   p2(lines[j][0],lines[j][1]);
           float angle = cvhelper::radToDeg(cvhelper::angleBetween(p1, p2, pt));
           // std::cout << angle << std::endl;
-          if ((angle > 60) && (angle < 140)) corners.push_back(pt);
+          if ((angle > options.minAngleOfIntersectingLines)
+           && (angle < options.maxAngleOfIntersectingLines))
+             corners.push_back(pt);
       }
     }
   }
@@ -135,7 +140,7 @@ Corners pointsSorted(vector<Point2f> &boundingBoxPoints, Rect fromRect)
   return sortBoundingBoxPoints(boundingBoxPoints, center, fromRect);
 }
 
-Mat cornerTransform(Corners &corners, Rect &destBounds)
+Mat cornerTransform(Corners &corners, Rect &destBounds, Options options)
 {
   // Corners = four points defining a quadrilateral,
   // destBounds defines the rectangle of which the area defined by corners
@@ -155,10 +160,13 @@ Mat cornerTransform(Corners &corners, Rect &destBounds)
   return cv::getPerspectiveTransform(corners.asVector(), quadPoints);
 }
 
-Corners findCorners(vector<Vec4i> &lines, Rect &fromRect)
+Corners findCorners(vector<Vec4i> &lines, Rect &fromRect, Options options)
 {
-  auto pts = findBoundingBoxPoints(lines);
+  auto pts = findBoundingBoxPoints(lines, options);
   pts.erase(std::remove_if(pts.begin(), pts.end(),
     [&](Point2f p) { return !fromRect.contains(p); }), pts.end());
   return pointsSorted(pts, fromRect);
 }
+
+} // quad
+} // vision

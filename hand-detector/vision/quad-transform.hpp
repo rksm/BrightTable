@@ -12,6 +12,15 @@ fromMat into toMat
 
 #include <opencv2/opencv.hpp>
 
+namespace vision {
+namespace quad {
+
+struct Options
+{
+  float minAngleOfIntersectingLines = 60;
+  float maxAngleOfIntersectingLines = 140;
+};
+
 struct Corners
 {
   Corners() : Corners(0,0,0,0,0,0,0,0) {};
@@ -35,7 +44,10 @@ struct Corners
   bool operator==(const Corners &other) const;
 };
 
-cv::Mat cornerTransform(Corners &corners,  cv::Rect&);
-Corners findCorners(std::vector<cv::Vec4i>&, cv::Rect&);
+cv::Mat cornerTransform(Corners &corners,  cv::Rect&, Options);
+Corners findCorners(std::vector<cv::Vec4i>&, cv::Rect&, Options);
+
+}
+}
 
 #endif  // QUAD_TRANSFORM_H_INCLUDE
