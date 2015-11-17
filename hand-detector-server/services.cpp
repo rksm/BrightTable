@@ -2,6 +2,8 @@
 #include <string>
 #include <strstream>
 
+#include "camera.hpp"
+
 #include "vision/hand-detection.hpp"
 #include "vision/screen-detection.hpp"
 #include "vision/cv-helper.hpp"
@@ -73,20 +75,14 @@ void answerWithError(Server &server, Value &msg, string errMessage)
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-std::mutex capsMutex;
-typedef std::shared_ptr<cv::VideoCapture> CaptureDev;
-typedef std::map<int, CaptureDev> CaptureDevs;
-CaptureDevs caps;
-CaptureDev getVideoCaptureDev(int devNo)
+vision::cam::CameraPtr getVideoCaptureDev(Value &msg)
 {
-  auto capIt = caps.find(devNo);
-  if (capIt != caps.end()) return capIt->second;
-
-  auto cap = std::make_shared<cv::VideoCapture>(cv::VideoCapture(devNo));
-  capsMutex.lock();
-  caps.insert({devNo, cap});
-  capsMutex.unlock();
-  return cap;
+  std::string videoDevName = msg["data"].get("deviceNo", "").asString();
+  try {
+    return vision::cam::getCamera(std::stoi(videoDevName));
+  } catch(const std::exception& e) {
+    return vision::cam::getCamera(videoDevName);
+  }
 }
 
 namespace handdetection {
@@ -109,8 +105,7 @@ bool uploadedOrCapturedImage(Server &server, string &sender, Value &msg, Mat &im
 
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
-  auto videoDevNo = msg["data"].get("deviceNo", 0).asInt();
-  (*getVideoCaptureDev(videoDevNo)) >> image;
+  getVideoCaptureDev(msg)->read(image);
   if (maxWidth > 0 && maxHeight > 0)
     cvhelper::resizeToFit(image, image, maxWidth, maxHeight);
   return false;
@@ -130,7 +125,7 @@ void readFrameAndSend(
   uint &repeat,
   uint &maxWidth,
   uint &maxHeight,
-  CaptureDev &dev,
+  vision::cam::CameraPtr dev,
   Mat &frame,
   Server &server,
   string &target)
@@ -157,11 +152,10 @@ void captureCameraService(Value msg, Server server)
   uint maxWidth = msg["data"].get("maxWidth", 0).asInt();
   uint maxHeight = msg["data"].get("maxHeight", 0).asInt();
   uint nFrames = msg["data"].get("nFrames", 1).asInt();
-  auto videoDevNo = msg["data"].get("deviceNo", 0).asInt();
-  auto cap = getVideoCaptureDev(videoDevNo);
+  auto cam = getVideoCaptureDev(msg);
   Mat frame;
   server->answer(msg, (string)"OK");
-  readFrameAndSend(nFrames, maxWidth, maxHeight, cap, frame, server, sender);
+  readFrameAndSend(nFrames, maxWidth, maxHeight, cam, frame, server, sender);
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -390,7 +384,7 @@ std::map<std::string, bool> handDetectionActivities;
 
 void runHandDetectionProcessFor(
   string &target, Server &server,
-  Mat &frame, Mat &proj, CaptureDev dev,
+  Mat &frame, Mat &proj, vision::cam::CameraPtr &dev,
   uint maxWidth, uint maxHeight,
   vision::hand::Options &opts,
   bool debug = false)
@@ -434,8 +428,7 @@ void handDetectionStreamStart(Value msg, Server server)
   bool debug = msg["data"]["debug"].asBool();
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
-  auto videoDevNo = msg["data"].get("deviceNo", 0).asInt();
-  auto cap = getVideoCaptureDev(videoDevNo);
+  auto cam = getVideoCaptureDev(msg);
   Mat frame;
 
   handDetectionActivities[sender] = true;
@@ -451,7 +444,7 @@ void handDetectionStreamStart(Value msg, Server server)
   vision::hand::Options opts;
   handOptions(msg["data"], opts);
 
-  runHandDetectionProcessFor(sender, server, frame, proj, cap, maxWidth, maxHeight, opts, debug);
+  runHandDetectionProcessFor(sender, server, frame, proj, cam, maxWidth, maxHeight, opts, debug);
 
   server->answer(msg, (string)"OK");
 }

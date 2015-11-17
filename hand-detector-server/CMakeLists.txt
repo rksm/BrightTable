@@ -4,7 +4,7 @@ set (HAND-DETECTOR-SERVER_BUILD_ROOT ${CMAKE_CURRENT_BINARY_DIR})
 set (HAND-DETECTOR-SERVER_BIN ${HAND-DETECTOR-SERVER_BUILD_ROOT}/bin)
 set (HAND-DETECTOR-SERVER_LIB ${HAND-DETECTOR-SERVER_BUILD_ROOT}/lib)
 
-find_package (Jsoncpp REQUIRED)
+find_package(Jsoncpp REQUIRED)
 find_package(Boost COMPONENTS system REQUIRED)
 
 include(ExternalProject)
@@ -32,6 +32,7 @@ target_include_directories(hand-detector-server PUBLIC
 
 target_link_libraries (hand-detector-server
   hand-detector
+  camera
   "${HAND-DETECTOR-SERVER_LIB}/${CMAKE_STATIC_LIBRARY_PREFIX}l2l-cpp${CMAKE_STATIC_LIBRARY_SUFFIX}"
   ${Jsoncpp_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
