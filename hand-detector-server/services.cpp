@@ -127,18 +127,20 @@ void readFrameAndSend(
   uint &maxHeight,
   vision::cam::CameraPtr dev,
   Mat &frame,
+  Mat &depthFrame,
   Server &server,
   string &target)
 {
   if (repeat == 0) return;
 
   try {
-    dev->read(frame);
+    dev->readWithDepth(frame, depthFrame);
     // resize(frame, frame, cv::Size(), 0.3, 0.3);
     if (maxWidth > 0 && maxHeight > 0)
       cvhelper::resizeToFit(frame, frame, maxWidth, maxHeight);
     sendMat(frame, server, target);
-    server->setTimer(10, bind(readFrameAndSend, repeat - 1, maxWidth, maxHeight, dev, frame, server, target));
+    sendMat(depthFrame, server, target);
+    server->setTimer(10, bind(readFrameAndSend, repeat - 1, maxWidth, maxHeight, dev, frame, depthFrame, server, target));
   } catch (const std::exception& e) {
     std::cout << "error in readFrameAndSend: " << e.what() << std::endl;
   }
@@ -153,9 +155,9 @@ void captureCameraService(Value msg, Server server)
   uint maxHeight = msg["data"].get("maxHeight", 0).asInt();
   uint nFrames = msg["data"].get("nFrames", 1).asInt();
   auto cam = getVideoCaptureDev(msg);
-  Mat frame;
+  Mat frame, depthFrame;
   server->answer(msg, (string)"OK");
-  readFrameAndSend(nFrames, maxWidth, maxHeight, cam, frame, server, sender);
+  readFrameAndSend(nFrames, maxWidth, maxHeight, cam, frame, depthFrame, server, sender);
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

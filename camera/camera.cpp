@@ -2,7 +2,6 @@
 #include <mutex>
 
 #include <opencv2/opencv.hpp>
-#include <libfreenect2/libfreenect2.hpp>
 
 #include <camera.hpp>
 #include <kinect-camera.hpp>
@@ -12,6 +11,7 @@ namespace cam {
 
 CvCamera::CvCamera(int devNo) : cam(new cv::VideoCapture(devNo)) {};
 void CvCamera::read(cv::Mat &frame) { cam->read(frame); };
+void CvCamera::readWithDepth(cv::Mat &frame, cv::Mat &depth) { return read(frame); };
 bool CvCamera::isOpen() { return cam->isOpened(); };
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

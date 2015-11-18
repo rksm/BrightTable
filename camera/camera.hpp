@@ -10,6 +10,7 @@ class Camera
 {
   public:
     virtual void read(cv::Mat &frame) {};
+    virtual void readWithDepth(cv::Mat &frame, cv::Mat &depth) {};
     virtual bool isOpen() { return true; };
 };
 
@@ -17,7 +18,8 @@ class CvCamera : public Camera
 {
   public:
     CvCamera(int devNo);
-    virtual void read(cv::Mat&);
+    void read(cv::Mat&);
+    void readWithDepth(cv::Mat &frame, cv::Mat &depth);
     bool isOpen();
   private:
     std::unique_ptr<cv::VideoCapture> cam;

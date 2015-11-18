@@ -14,6 +14,7 @@ class KinectCamera : public vision::cam::Camera
   public:
     KinectCamera();
     void read(cv::Mat &frame);
+    void readWithDepth(cv::Mat &frame, cv::Mat &depth);
   private:
     std::shared_ptr<KinectCameraState> state;
 };
