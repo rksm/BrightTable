@@ -13,15 +13,6 @@ add_library(camera
   "kinect-sensor.cpp"
   "kinect-camera.hpp"
   "kinect-camera.cpp"
-
-  "hal/depth_registration.h"
-  "hal/depth_registration.cpp"
-  "hal/depth_registration_cpu.h"
-  "hal/depth_registration_cpu.cpp"
-  "hal/depth_registration_cpu.h"
-  "hal/depth_registration_cpu.cpp"
-  "hal/depth_registration_opencl.h"
-  "hal/depth_registration_opencl.cpp"
 )
 
 target_link_libraries (camera ${freenect2_LIBRARIES})

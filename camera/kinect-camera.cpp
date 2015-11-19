@@ -6,9 +6,6 @@
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/packet_pipeline.h>
 
-#include <hal/depth_registration.h>
-
-
 size_t IR_IMAGE_WIDTH = 512, IR_IMAGE_HEIGHT = 424;
 
 namespace kinect {
@@ -48,8 +45,6 @@ struct KinectCameraState
   libfreenect2::Freenect2Device *cam;
   libfreenect2::SyncMultiFrameListener *listener;
   libfreenect2::Registration *registration;
-  DepthRegistration *depthRegistration;
-
 };
 
 KinectCameraState::KinectCameraState() : freenect(getFreenectInstance())
@@ -61,22 +56,6 @@ KinectCameraState::KinectCameraState() : freenect(getFreenectInstance())
   cam->start();
 
   registration = new libfreenect2::Registration(cam->getIrCameraParams(), cam->getColorCameraParams());
-
-  size_t imgWidth = IR_IMAGE_WIDTH, imgHeight = IR_IMAGE_HEIGHT;
-  depthRegistration = DepthRegistration::New
-   (cv::Size(imgWidth, imgHeight),
-    cv::Size(IR_IMAGE_WIDTH, IR_IMAGE_HEIGHT),
-    cv::Size(IR_IMAGE_WIDTH, IR_IMAGE_HEIGHT),
-    0.5f, 20.0f, 0.015f, DepthRegistration::CPU);
-
-  cv::Mat cameraMatrixColor = cv::Mat::zeros(3, 3, CV_64F);
-  cv::Mat cameraMatrixDepth = cv::Mat::zeros(3, 3, CV_64F);
-  depthRegistration->ReadDefaultCameraInfo(cameraMatrixColor, cameraMatrixDepth);
-  
-  depthRegistration->init(cameraMatrixColor, cameraMatrixDepth,
-                 cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 3, CV_64F),
-                 cv::Mat::zeros(IR_IMAGE_HEIGHT, IR_IMAGE_WIDTH, CV_32F),
-                 cv::Mat::zeros(IR_IMAGE_HEIGHT, IR_IMAGE_WIDTH, CV_32F));
 
   std::cout << "device serial: " << cam->getSerialNumber() << std::endl;
   std::cout << "device firmware: " << cam->getFirmwareVersion() << std::endl;
