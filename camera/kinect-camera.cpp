@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+
 #include <kinect-camera.hpp>
 
 #include <libfreenect2/libfreenect2.hpp>
@@ -156,55 +158,39 @@ void KinectCamera::readWithDepth(cv::Mat &frame, cv::Mat &depth)
   frame.create(height, width, CV_8UC4);
   memcpy(frame.data, rgbFrame->data, height*width*4*sizeof(uchar));
 
-  // depth.create(height, width, CV_32FC1);
-  // memcpy(frame.data, bigDepthFrame.data, height*width*1*sizeof(float));
+  depth.create(height, width, CV_32FC1);
+  memcpy(depth.data, bigDepthFrame.data, height*width*1*sizeof(float));
 
-  cv::Mat depthMat = cv::Mat(undistorted.height, undistorted.width, CV_32FC1, undistorted.data);
-  // cv::Mat depthMat = cv::Mat(bigDepthFrame.height, bigDepthFrame.width, CV_32FC1, bigDepthFrame.data);
-  depth.create(undistorted.height, undistorted.width, CV_8UC4);
-  float max = 0, min = 9999;
-  std::stringstream ss;
-  for (int i = 0; i < undistorted.height; i++)
+  // imshow("depth", depth / 1000.0f);
+  // imwrite("depth.exr", depth / 1000.0f);
+
+  if (false)
   {
-    for (int j = 0; j < undistorted.width; j++)
+    float max = 0, min = 9999;
+    std::stringstream ss;
+    for (int i = 0; i < height; i++)
     {
-      ss << depthMat.at<float>(i,j) << " ";
-      float val = depthMat.at<float>(i,j) / 4500.0f;
-      if (max < val) max = val;
-      if (min > val && val != 0) min = val;
-    
-      depth.at<cv::Vec4b>(i,j)[0] = val*255;
-      depth.at<cv::Vec4b>(i,j)[1] = val*255;
-      depth.at<cv::Vec4b>(i,j)[2] = val*255;
+      for (int j = 0; j < width; j++)
+      {
+        ss << depth.at<float>(i,j) << " ";
+        float val = depth.at<float>(i,j);
+        if (max < val) max = val;
+        if (min > val && val != 0) min = val;
+        if (val > 255) val = 255;
+      
+        // depth.at<cv::Vec4b>(i,j)[0] = val;
+        // depth.at<cv::Vec4b>(i,j)[1] = val;
+        // depth.at<cv::Vec4b>(i,j)[2] = val;
+      }
+      ss << "\n";
     }
-    ss << "\n";
-  }
-  std::cout << min << "/" << max << std::endl;
-  std::cout << ss.str() << std::endl;
-
-  // std::stringstream ss;
-  // float max = 0, min = 9999;
-  // for (int i = 0; i < frame.rows; i++)
-  // {
-  //   for (int j = 0; j < frame.cols; j++)
-  //   {
-  //     // float val = (float)bigDepthFrame.data[bigDepthFrame.height*(i+1) + j] / 4500.0f;
-  //     float val = bigMat.at<float>(i,j);
-  //     if (max < val) max = val;
-  //     if (min > val && val != 0) min = val;
-  //     // if (val == 0.0f) {
-  //     if (val < 1000.0f || val > 10000.0f) {
-  //       // frame.at<cv::Vec4b>(i, j)[0] = 0;
-  //       // frame.at<cv::Vec4b>(i, j)[1] = 0;
-  //       // frame.at<cv::Vec4b>(i, j)[2] = 0;
-  //     }
-  //   }
-  //   // ss << "\n";
-  // }
-  // // std::cout << ss.str() << std::endl;
-  // // std::cout << bigDepthFrame.width << "..." << bigDepthFrame.height << std::endl;
-  // std::cout << min << "/" << max << std::endl;
+    std::cout << min << "/" << max << std::endl;
   
+    std::ofstream myfile;
+    myfile.open("depth.txt");
+    myfile << ss.str();
+  }
+
   state->listener->release(frames);
 }
 

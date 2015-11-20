@@ -4,6 +4,7 @@
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
+#include <libfreenect2/logger.h>
 
 #include "kinect-sensor.hpp"
 
@@ -23,6 +24,7 @@ createFreenectDev(
   Freenect2Device **dev)
 {
   if (freenect2.enumerateDevices() == 0) return;
+  libfreenect2::setGlobalLogger(libfreenect2::createConsoleLogger(libfreenect2::Logger::Error));
   std::string serial = freenect2.getDefaultDeviceSerialNumber();
   libfreenect2::OpenCLPacketPipeline *pipeline = new libfreenect2::OpenCLPacketPipeline();
   *dev = freenect2.openDevice(serial, pipeline);

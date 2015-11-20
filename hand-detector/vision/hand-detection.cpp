@@ -41,7 +41,14 @@ Mat prepareForContourDetection(
   bool renderDebugImages = false)
 {
 
-    if (renderDebugImages) cvhelper::recordImage(src, "orig");
+    if (renderDebugImages) {
+      Mat orig;
+      // cvtColor(src, orig,CV_RGB2GRAY);
+      cvtColor(src, orig,COLOR_BGRA2BGR, 3);
+      cvhelper::recordImage(orig, "orig");
+      // imshow("debug", src);
+      // cv::waitKey(30);
+    }
 
     // Mat dst = Mat::zeros(src.size(), CV_8UC1);
     Size size = src.size();
@@ -84,10 +91,11 @@ Mat prepareForContourDetection(
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-HandContour findHandContour(
-  PointV contourPoints,
-  RotatedRect contourBounds,
-  Rect fullImageBounds)
+bool findHandContour(
+  const PointV &contourPoints,
+  const RotatedRect &contourBounds,
+  const Rect &fullImageBounds,
+  HandContour &handContour)
 {
   // find which contour points are on the image's edge. This is where the arm
   // starts
@@ -97,9 +105,11 @@ HandContour findHandContour(
   
   PointV pointsOnEdge;
   for (auto p : contourPoints) {
-    if (innerRect.contains(p)) continue;
-    pointsOnEdge.push_back(p);
+    if (!innerRect.contains(p))
+      pointsOnEdge.push_back(p);
   }
+
+  if (pointsOnEdge.size() == 0) return false;
 
   // find the opposite end to the arm start
   Point armStart = minAreaRect(pointsOnEdge).center,
@@ -130,13 +140,14 @@ HandContour findHandContour(
   int fingerRadius = max(boundsAroundHand.size.width, boundsAroundHand.size.height)/2;
   Point palmCenter = boundsAroundHand.center + (to - boundsAroundHand.center)*.5;
 
-  return HandContour{
-    boundsAroundHand,
-    pointsNearCenter,
-    armStart, pointingToP,
-    fingerRadius,
-    palmCenter
-  };
+  handContour.bounds = boundsAroundHand;
+  handContour.contourPoints = pointsNearCenter;
+  handContour.armStart = armStart;
+  handContour.pointTowards = pointingToP;
+  handContour.fingerRadius = fingerRadius;
+  handContour.palmCenter = palmCenter;
+  
+  return true;
 }
 
 void contourHullExtraction(
@@ -337,7 +348,9 @@ vector<HandData> findContours(
         if ((fullContourBounds.center.x > imageBounds.width)
          && (fullContourBounds.center.y > imageBounds.height)) continue;
 
-        HandContour handContour = findHandContour(contours[i], fullContourBounds, imageBounds);
+        HandContour handContour;
+        bool success = findHandContour(contours[i], fullContourBounds, imageBounds, handContour);
+        if (!success) continue;
 
         contourHullExtraction(handContour.contourPoints, hullsP[i], hullsI[i], defects[i]);
 
@@ -369,7 +382,7 @@ vector<HandData> findContours(
         if (renderDebugImages) {
           auto color = cvhelper::randomColor();
           drawContours(debugImage, contours, i, color, 2, 8, hierarchy, 0, Point());
-          
+
           drawRect(debugImage, CV_RGB(0,255,0), handContour.bounds);
           circle(debugImage, handContour.pointTowards, 10, CV_RGB(255,255,255), 3);
 

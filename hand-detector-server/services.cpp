@@ -99,15 +99,17 @@ bool uploadedDataToMat(Server &server, string &sender, Value &msg, Mat &image)
   return true;
 }
 
-bool uploadedOrCapturedImage(Server &server, string &sender, Value &msg, Mat &image)
+bool uploadedOrCapturedImage(Server &server, string &sender, Value &msg, Mat &image, Mat &depthImage)
 {
   if (uploadedDataToMat(server, sender, msg, image)) return true;
 
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
-  getVideoCaptureDev(msg)->read(image);
-  if (maxWidth > 0 && maxHeight > 0)
+  getVideoCaptureDev(msg)->readWithDepth(image, depthImage);
+  if (maxWidth > 0 && maxHeight > 0) {
     cvhelper::resizeToFit(image, image, maxWidth, maxHeight);
+    cvhelper::resizeToFit(depthImage, depthImage, maxWidth, maxHeight);
+  }
   return false;
 }
 
@@ -139,6 +141,8 @@ void readFrameAndSend(
     if (maxWidth > 0 && maxHeight > 0)
       cvhelper::resizeToFit(frame, frame, maxWidth, maxHeight);
     sendMat(frame, server, target);
+    if (maxWidth > 0 && maxHeight > 0)
+      cvhelper::resizeToFit(depthFrame, depthFrame, maxWidth, maxHeight);
     sendMat(depthFrame, server, target);
     server->setTimer(10, bind(readFrameAndSend, repeat - 1, maxWidth, maxHeight, dev, frame, depthFrame, server, target));
   } catch (const std::exception& e) {
@@ -200,8 +204,8 @@ void recognizeScreenCornersService(Value msg, Server server)
   vision::screen::Options opts;
   screenOptions(msg["data"], opts);
 
-  Mat image;
-  if (!uploadedOrCapturedImage(server, sender, msg, image))
+  Mat image, depthImage;
+  if (!uploadedOrCapturedImage(server, sender, msg, image, depthImage))
     sendMat(image, server, sender);
   sendMat(image, server, sender);
 
@@ -285,17 +289,15 @@ void screenTransform(Value msg, Server server)
     for (int j = 0; j < 3; j++)
       proj.at<float>(i, j) = projArr[(i*3)+j];
 
-  Mat image;
-  uploadedOrCapturedImage(server, sender, msg, image);
+  Mat image, depthImage;
+  uploadedOrCapturedImage(server, sender, msg, image, depthImage);
 
   bool debug = false;
   vision::screen::Options opts;
   screenOptions(msg["data"], opts);
   Mat projected = vision::screen::applyScreenProjection(image, proj, image.size(), opts, debug);
   if (debug) {
-    imshow("image", image);
     Mat recorded = cvhelper::getAndClearRecordedImages();
-    imshow("debug", recorded);
   }
 
   sendMat(projected, server, sender);
@@ -307,8 +309,8 @@ void screenTransform(Value msg, Server server)
 
 Mat transformFrame(Mat &input, cv::Size &tfmedSize, Mat &proj)
 {
-  cvhelper::resizeToFit(input, input, 700, 700);
-  cv::Mat output = Mat(tfmedSize, CV_8UC3);
+  // cvhelper::resizeToFit(input, input, 700, 700);
+  cv::Mat output = Mat(tfmedSize, input.type());
   cv::warpPerspective(input, output, proj, output.size());
   return output;
 }
@@ -332,9 +334,12 @@ void recognizeHand(
 
   // Mat output = in;
   Mat output = transformFrame(in, tfmedSize, proj);
-  // imshow("1", output);
+
+  // imshow("debug", output);
+  // cv::waitKey(30);
 
   // step 2: find hand + finger
+  // output.convertTo(output, CV_8UC3);
   vision::hand::processFrame(output, output, handData, opts, debug);
   // imshow("2", output);
 
@@ -342,7 +347,8 @@ void recognizeHand(
   if (debug) {
     // std::cout << vision::hand::frameWithHandsToJSONString(handData) << std::endl;
     Mat recorded = cvhelper::getAndClearRecordedImages();
-    cvhelper::resizeToFit(recorded, out, maxWidth,maxWidth);
+    // recorded.copyTo(out);
+    cvhelper::resizeToFit(recorded, out, maxWidth, maxWidth);
   } else {
     out = in;
   }
@@ -364,16 +370,15 @@ void handDetection(Value msg, Server server)
         proj.at<float>(i, j) = projection[(i*3)+j].asFloat();
   }
 
-  Mat uploaded;
-  if (!uploadedDataToMat(server, sender, msg, uploaded)) {
-    answerWithError(server, msg, "no data uploaded"); return; }
+  Mat image, depthImage;
+  uploadedOrCapturedImage(server, sender, msg, image, depthImage);
 
   bool debug = msg["data"]["debug"].asBool();
   vision::hand::Options opts;
   handOptions(msg["data"], opts);
   vision::hand::FrameWithHands handData;
   Mat recorded;
-  recognizeHand(uploaded, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
+  recognizeHand(image, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
 
   sendMat(recorded, server, sender);
 
@@ -386,7 +391,7 @@ std::map<std::string, bool> handDetectionActivities;
 
 void runHandDetectionProcessFor(
   string &target, Server &server,
-  Mat &frame, Mat &proj, vision::cam::CameraPtr &dev,
+  Mat &frame, Mat &depthFrame, Mat &proj, vision::cam::CameraPtr &dev,
   uint maxWidth, uint maxHeight,
   vision::hand::Options &opts,
   bool debug = false)
@@ -398,14 +403,17 @@ void runHandDetectionProcessFor(
   }
 
   try {
-    dev->read(frame);
+    dev->readWithDepth(frame, depthFrame);
+
     vision::hand::FrameWithHands handData;
     Mat recorded;
+    cvhelper::resizeToFit(frame, frame, 700, 700);
     recognizeHand(frame, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
     sendMat(recorded, server, target);
+    // sendMat(frame, server, target);
     server->setTimer(10, bind(runHandDetectionProcessFor,
       target, server,
-      frame, proj, dev,
+      frame, depthFrame, proj, dev,
       maxWidth, maxHeight,
       opts, debug));
   } catch (const std::exception& e) {
@@ -431,7 +439,7 @@ void handDetectionStreamStart(Value msg, Server server)
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
   auto cam = getVideoCaptureDev(msg);
-  Mat frame;
+  Mat frame, depthFrame;
 
   handDetectionActivities[sender] = true;
 
@@ -446,7 +454,7 @@ void handDetectionStreamStart(Value msg, Server server)
   vision::hand::Options opts;
   handOptions(msg["data"], opts);
 
-  runHandDetectionProcessFor(sender, server, frame, proj, cam, maxWidth, maxHeight, opts, debug);
+  runHandDetectionProcessFor(sender, server, frame, depthFrame, proj, cam, maxWidth, maxHeight, opts, debug);
 
   server->answer(msg, (string)"OK");
 }
