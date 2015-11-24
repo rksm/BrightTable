@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <strstream>
 
@@ -6,6 +7,7 @@
 
 #include "vision/hand-detection.hpp"
 #include "vision/screen-detection.hpp"
+#include "vision/cv-debugging.hpp"
 #include "vision/cv-helper.hpp"
 #include "json/json.h"
 #include "services.hpp"
@@ -18,9 +20,67 @@ using Json::Value;
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+template<typename T>
+void sortedValues(Mat &in, vector<T> &out)
+{
+  auto size = in.size();
+  for (int i = 0; i < size.height; i++)
+    for (int j = 0; j < size.width; j++)
+      out[i*size.width + j] = in.at<T>(i, j);
+  std::sort(out.begin(), out.end());
+}
+
+template<typename T>
+std::pair<T,T> percentiles(Mat &in, float percentile=5.0f) {
+  
+  size_t n = in.cols * in.rows;
+  vector<T> sorted(n);
+  sortedValues(in, sorted);
+  
+  size_t idx = std::ceil(percentile/100.0f * (float)n);
+  auto low = sorted[idx];
+  auto high = sorted[n - idx];
+
+  std::cout << "percentile: " << percentile
+            << " n: " << n
+            << " low: " << low
+            << " high: " << high
+            << std::endl;
+
+  return std::make_pair(low, high);
+}
+
+void convertToProperGrayscale(Mat &grayMat, float percentile=5.0f)
+{
+  // float high = 1.0f, low = 0.0f;
+  // if (percentile != 0.0f) {
+    auto perc = percentiles<float>(grayMat, percentile);
+    float high = perc.second, low = perc.first;
+  // }
+
+  for (int i = 0; i < grayMat.rows; i++)
+    for (int j = 0; j < grayMat.cols; j++)
+    {
+      auto val = grayMat.at<float>(i,j);
+      grayMat.at<float>(i,j) = std::max(0.0f, std::min(1.0f, 1.0f/(high-low) * (val-low)));
+    }
+  // float multiplier = 1 / perc.second;
+  // grayMat = (grayMat - perc.first) * multiplier;
+}
+
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+void transformFrame(Mat &input, Mat &output, cv::Size &tfmedSize, Mat &proj)
+{
+  output.create(tfmedSize, input.type());
+  cv::warpPerspective(input, output, proj, tfmedSize);
+}
+
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
 int thresholdType(std::string name)
 {
-  if (name == "CV_THRESH_BINARY")          return CV_THRESH_BINARY;
+  if      (name == "CV_THRESH_BINARY")     return CV_THRESH_BINARY;
   else if (name == "CV_THRESH_BINARY_INV") return CV_THRESH_BINARY_INV;
   else if (name == "CV_THRESH_TRUNC")      return CV_THRESH_TRUNC;
   else if (name == "CV_THRESH_TOZERO")     return CV_THRESH_TOZERO;
@@ -99,17 +159,39 @@ bool uploadedDataToMat(Server &server, string &sender, Value &msg, Mat &image)
   return true;
 }
 
-bool uploadedOrCapturedImage(Server &server, string &sender, Value &msg, Mat &image, Mat &depthImage)
+bool uploadedOrCapturedImage(Server &server, string &sender, Value &msg, Mat &image, Mat &depthImage, Mat &depthBackgroundImage)
 {
-  if (uploadedDataToMat(server, sender, msg, image)) return true;
 
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
+
+  // 1. read depth
+  auto depthFile = msg["data"].get("depthFile", "").asString();
+  if (depthFile != "") {
+    std::cout << "Reading depth file: " << depthFile << std::endl;
+    cv::FileStorage fs(depthFile, cv::FileStorage::READ);
+    fs["depth"] >> depthImage;
+    if (maxWidth > 0 && maxHeight > 0) cvhelper::resizeToFit(depthImage, depthImage, maxWidth, maxHeight);
+  }
+
+  auto depthBackgroundFile = msg["data"].get("depthBackgroundFile", "").asString();
+  if (depthBackgroundFile != "") {
+    std::cout << "Reading depth background file: " << depthBackgroundFile << std::endl;
+    cv::FileStorage fs(depthBackgroundFile, cv::FileStorage::READ);
+    fs["depth"] >> depthBackgroundImage;
+    if (maxWidth > 0 && maxHeight > 0) cvhelper::resizeToFit(depthBackgroundImage, depthBackgroundImage, maxWidth, maxHeight);
+  }
+
+  // 2. image uploaded?
+  if (uploadedDataToMat(server, sender, msg, image)) return true;
+
+  // 3. capture image
   getVideoCaptureDev(msg)->readWithDepth(image, depthImage);
   if (maxWidth > 0 && maxHeight > 0) {
     cvhelper::resizeToFit(image, image, maxWidth, maxHeight);
     cvhelper::resizeToFit(depthImage, depthImage, maxWidth, maxHeight);
   }
+
   return false;
 }
 
@@ -158,10 +240,16 @@ void captureCameraService(Value msg, Server server)
   uint maxWidth = msg["data"].get("maxWidth", 0).asInt();
   uint maxHeight = msg["data"].get("maxHeight", 0).asInt();
   uint nFrames = msg["data"].get("nFrames", 1).asInt();
+  string depthFile = msg["data"].get("depthFile", "").asString();
   auto cam = getVideoCaptureDev(msg);
   Mat frame, depthFrame;
   server->answer(msg, (string)"OK");
   readFrameAndSend(nFrames, maxWidth, maxHeight, cam, frame, depthFrame, server, sender);
+  if (depthFile != "") {
+    cv::FileStorage fs(depthFile, cv::FileStorage::WRITE);
+    fs << "depth" << depthFrame;
+    fs.release();
+  }
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -204,8 +292,8 @@ void recognizeScreenCornersService(Value msg, Server server)
   vision::screen::Options opts;
   screenOptions(msg["data"], opts);
 
-  Mat image, depthImage;
-  if (!uploadedOrCapturedImage(server, sender, msg, image, depthImage))
+  Mat image, depthImage, depthBackgroundImage;
+  if (!uploadedOrCapturedImage(server, sender, msg, image, depthImage, depthBackgroundImage))
     sendMat(image, server, sender);
   sendMat(image, server, sender);
 
@@ -289,15 +377,15 @@ void screenTransform(Value msg, Server server)
     for (int j = 0; j < 3; j++)
       proj.at<float>(i, j) = projArr[(i*3)+j];
 
-  Mat image, depthImage;
-  uploadedOrCapturedImage(server, sender, msg, image, depthImage);
+  Mat image, depthImage, depthBackgroundImage;
+  uploadedOrCapturedImage(server, sender, msg, image, depthImage, depthBackgroundImage);
 
   bool debug = false;
   vision::screen::Options opts;
   screenOptions(msg["data"], opts);
   Mat projected = vision::screen::applyScreenProjection(image, proj, image.size(), opts, debug);
   if (debug) {
-    Mat recorded = cvhelper::getAndClearRecordedImages();
+    Mat recorded = cvdbg::getAndClearRecordedImages();
   }
 
   sendMat(projected, server, sender);
@@ -307,16 +395,8 @@ void screenTransform(Value msg, Server server)
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-Mat transformFrame(Mat &input, cv::Size &tfmedSize, Mat &proj)
-{
-  // cvhelper::resizeToFit(input, input, 700, 700);
-  cv::Mat output = Mat(tfmedSize, input.type());
-  cv::warpPerspective(input, output, proj, output.size());
-  return output;
-}
-
 void recognizeHand(
-  Mat &in, Mat &proj, Mat &out,
+  Mat &in, Mat &depth, Mat &depthBackground, Mat &proj, Mat &out,
   vision::hand::FrameWithHands &handData,
   int maxWidth, int maxHeight,
   vision::hand::Options &opts,
@@ -333,20 +413,38 @@ void recognizeHand(
   // std::cout << "hand detection uses projection " << proj << " into " << tfmedSize << std::endl;
 
   // Mat output = in;
-  Mat output = transformFrame(in, tfmedSize, proj);
+  Mat output;
+  transformFrame(in, output, tfmedSize, proj);
+  if (depth.empty()) depth = Mat::zeros(in.size(), CV_32F);
+  transformFrame(depth, depth, tfmedSize, proj);
+  if (depthBackground.empty()) depthBackground = Mat::zeros(in.size(), CV_32F);
+  transformFrame(depthBackground, depthBackground, tfmedSize, proj);
+  
+  {
+    std::ofstream depthStream;
+    depthStream.open("depth.txt");
+    for (int i = 0; i < depth.rows; i++)
+    {
+      for (int j = 0; j < depth.cols; j++)
+      {
+        depthStream << depth.at<float>(i,j) << ",";
+      }
+      depthStream << "\n";
+    }
+  }
 
-  // imshow("debug", output);
+  // imshow("debug", depth);
   // cv::waitKey(30);
 
   // step 2: find hand + finger
   // output.convertTo(output, CV_8UC3);
-  vision::hand::processFrame(output, output, handData, opts, debug);
+  vision::hand::processFrame(output, depth, depthBackground, output, handData, opts, debug);
   // imshow("2", output);
 
   // debugging...
   if (debug) {
     // std::cout << vision::hand::frameWithHandsToJSONString(handData) << std::endl;
-    Mat recorded = cvhelper::getAndClearRecordedImages();
+    Mat recorded = cvdbg::getAndClearRecordedImages();
     // recorded.copyTo(out);
     cvhelper::resizeToFit(recorded, out, maxWidth, maxWidth);
   } else {
@@ -370,15 +468,69 @@ void handDetection(Value msg, Server server)
         proj.at<float>(i, j) = projection[(i*3)+j].asFloat();
   }
 
-  Mat image, depthImage;
-  uploadedOrCapturedImage(server, sender, msg, image, depthImage);
+  Mat image, depthImage, depthBackground;
+  uploadedOrCapturedImage(server, sender, msg, image, depthImage, depthBackground);
+
+  {
+    auto depthPercentile = msg["data"].get("depthPercentile", 0.0f).asFloat();
+    auto s = cv::Size(maxWidth, maxHeight);
+    transformFrame(depthImage, depthImage, s, proj);
+    {
+      cv::FileStorage fs("depth.yml", cv::FileStorage::WRITE);
+      fs << "depth" << depthImage;
+      fs.release();
+    }
+
+    convertToProperGrayscale(depthImage, depthPercentile);
+    // imshow("depth", depthImage);
+    transformFrame(depthBackground, depthBackground, s, proj);
+    // {
+    //   cv::FileStorage fs("depthBackground.yml", cv::FileStorage::WRITE);
+    //   fs << "depth" << depthBackground;
+    //   fs.release();
+    // }
+    convertToProperGrayscale(depthBackground, depthPercentile);
+    // imshow("depthBg", depthBackground);
+    // cv::waitKey(30);
+  }
+
+  {
+    // Mat diff(depthImage.size(), CV_32F);
+    // for (int i = 0; i < depthImage.rows; i++)
+    // {
+    //   for (int j = 1; j < depthImage.cols; j++)
+    //   {
+    //     diff.at<float>(i,j) = std::abs(depthImage.at<float>(i,j)-depthImage.at<float>(i,j-1));
+    //   }
+    // }
+    Mat diff = depthBackground - depthImage;
+    // absdiff(depthImage, depthBackground, diff);
+    auto depthPercentile = msg["data"].get("depthPercentile", 0.0f).asFloat();
+    convertToProperGrayscale(diff, depthPercentile);
+
+    auto depthBlur = msg["data"].get("depthBlur", 0).asInt();
+    if (depthBlur != 0)
+      cv::blur(diff, diff, cv::Size(depthBlur, depthBlur));
+    auto depthThreshold = msg["data"].get("depthThreshold", 0).asFloat();
+    if (depthThreshold != 0.0f)
+      cv::threshold(diff, diff, depthThreshold, 1, CV_THRESH_BINARY);
+
+    cv::FileStorage fs("depth-diff.yml", cv::FileStorage::WRITE);
+    fs << "depth" << diff;
+    fs.release();
+
+    diff *= 255;
+    // cvtColor(diff,diff,cv::COLOR_GRAY2BGR);
+    diff.convertTo(diff, CV_8UC3);
+    cvdbg::recordImage(diff, "diff");
+  }
 
   bool debug = msg["data"]["debug"].asBool();
   vision::hand::Options opts;
   handOptions(msg["data"], opts);
   vision::hand::FrameWithHands handData;
   Mat recorded;
-  recognizeHand(image, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
+  recognizeHand(image, depthImage, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
 
   sendMat(recorded, server, sender);
 
@@ -391,7 +543,7 @@ std::map<std::string, bool> handDetectionActivities;
 
 void runHandDetectionProcessFor(
   string &target, Server &server,
-  Mat &frame, Mat &depthFrame, Mat &proj, vision::cam::CameraPtr &dev,
+  Mat &frame, Mat &depthFrame, Mat &depthBackground, Mat &proj, vision::cam::CameraPtr &dev,
   uint maxWidth, uint maxHeight,
   vision::hand::Options &opts,
   bool debug = false)
@@ -407,13 +559,12 @@ void runHandDetectionProcessFor(
 
     vision::hand::FrameWithHands handData;
     Mat recorded;
-    cvhelper::resizeToFit(frame, frame, 700, 700);
-    recognizeHand(frame, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
+    recognizeHand(frame, depthFrame, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, debug);
     sendMat(recorded, server, target);
     // sendMat(frame, server, target);
     server->setTimer(10, bind(runHandDetectionProcessFor,
       target, server,
-      frame, depthFrame, proj, dev,
+      frame, depthFrame, depthBackground, proj, dev,
       maxWidth, maxHeight,
       opts, debug));
   } catch (const std::exception& e) {
@@ -439,7 +590,7 @@ void handDetectionStreamStart(Value msg, Server server)
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
   auto cam = getVideoCaptureDev(msg);
-  Mat frame, depthFrame;
+  Mat frame, depthFrame, depthBackground;
 
   handDetectionActivities[sender] = true;
 
@@ -451,10 +602,16 @@ void handDetectionStreamStart(Value msg, Server server)
         proj.at<float>(i, j) = projection[(i*3)+j].asFloat();
   }
 
+  auto depthBackgroundFile = msg["data"].get("depthBackgroundFile", "").asString();
+  if (depthBackgroundFile != "") {
+    cv::FileStorage fs(depthBackgroundFile, cv::FileStorage::READ);
+    fs["depth"] >> depthBackground;
+  }
+
   vision::hand::Options opts;
   handOptions(msg["data"], opts);
 
-  runHandDetectionProcessFor(sender, server, frame, depthFrame, proj, cam, maxWidth, maxHeight, opts, debug);
+  runHandDetectionProcessFor(sender, server, frame, depthFrame, depthBackground, proj, cam, maxWidth, maxHeight, opts, debug);
 
   server->answer(msg, (string)"OK");
 }

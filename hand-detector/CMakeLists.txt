@@ -5,6 +5,7 @@ find_package (Jsoncpp REQUIRED)
 
 add_library(hand-detector
   "vision/cv-helper.cpp"
+  "vision/cv-debugging.cpp"
   "vision/hand-detection-json.cpp"
   "vision/hand-detection.cpp"
   "vision/quad-transform.cpp"

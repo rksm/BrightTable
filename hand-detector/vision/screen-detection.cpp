@@ -1,6 +1,7 @@
 #include "vision/screen-detection.hpp"
 #include "vision/quad-transform.hpp"
 #include "vision/cv-helper.hpp"
+#include "vision/cv-debugging.hpp"
 
 #include <numeric>
 #include <algorithm>
@@ -29,7 +30,7 @@ Mat extractContours(const Mat &imgIn, Options opts, bool debugRecordings)
   Mat dst = Mat::zeros(imgIn.size(), CV_8UC1);
   Mat contourDst = Mat::zeros(imgIn.size(), CV_8UC1);
   prepareImage(imgIn, dst, opts);
-  if (debugRecordings) cvhelper::recordImage(dst, "prep");
+  if (debugRecordings) cvdbg::recordImage(dst, "prep");
 
   vector<vector<cv::Point>> contours;
   vector<cv::Vec4i> hierarchy;
@@ -50,7 +51,7 @@ Mat extractContours(const Mat &imgIn, Options opts, bool debugRecordings)
   vector<Point> hullPoints;
   convexHull(contours[biggestI], hullPoints);
   cvhelper::drawPointsConnected<Point>(hullPoints, contourDst);
-  if (debugRecordings) cvhelper::recordImage(contourDst, "contour");
+  if (debugRecordings) cvdbg::recordImage(contourDst, "contour");
 
   return contourDst;
 }
@@ -104,7 +105,7 @@ vector<cv::Vec4i> findLinesOfLargestRect(Mat &src, Options opts, bool debugRecor
     for (auto l : lines) {
       line(src, Point(l[0], l[1]), Point(l[2], l[3]), cvhelper::randomColor(), 3, CV_AA);
     }
-    cvhelper::recordImage(src, "lines");
+    cvdbg::recordImage(src, "lines");
   }
   return lines;
 }
@@ -121,9 +122,9 @@ Mat screenProjection(Mat &src, cv::Size size, Options opts, bool debugRecordings
 
 Mat applyScreenProjection(cv::Mat &in, cv::Mat &projection, cv::Size size, Options opts, bool debugRecordings)
 {
-  cv::Mat projected = cv::Mat::zeros(size.width, size.height, CV_8UC3);
+  cv::Mat projected = cv::Mat::zeros(size.width, size.height, in.type());
   cv::warpPerspective(in, projected, projection, size);
-  if (debugRecordings) cvhelper::recordImage(projected, "projection");
+  if (debugRecordings) cvdbg::recordImage(projected, "projection");
   return projected;
 }
 

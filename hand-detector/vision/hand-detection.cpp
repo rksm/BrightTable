@@ -1,4 +1,5 @@
 #include "vision/hand-detection.hpp"
+#include "vision/cv-debugging.hpp"
 #include <numeric>
 #include <algorithm>
 
@@ -45,7 +46,7 @@ Mat prepareForContourDetection(
       Mat orig;
       // cvtColor(src, orig,CV_RGB2GRAY);
       cvtColor(src, orig,COLOR_BGRA2BGR, 3);
-      cvhelper::recordImage(orig, "orig");
+      cvdbg::recordImage(orig, "orig");
       // imshow("debug", src);
       // cv::waitKey(30);
     }
@@ -59,7 +60,7 @@ Mat prepareForContourDetection(
     // blur(src_gray, dst, Size(4,4));
     // equalizeHist(dst, dst);
     medianBlur(dst, dst, opts.blurIntensity);
-    // if (renderDebugImages) cvhelper::recordImage(dst, "blur");
+    // if (renderDebugImages) cvdbg::recordImage(dst, "blur");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     threshold(dst, dst, opts.thresholdMin, opts.thresholdMax, opts.thresholdType);
@@ -67,7 +68,7 @@ Mat prepareForContourDetection(
     // threshold(dst, dst, 100, 255, CV_THRESH_BINARY);
     // adaptiveThreshold(dst, dst, 115, ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 9, -3);
     // adaptiveThreshold(dst, dst, 165, ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 9, -3);
-    // if (renderDebugImages) cvhelper::recordImage(dst, "threshold");
+    // if (renderDebugImages) cvdbg::recordImage(dst, "threshold");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     dilate(dst, dst, Mat(3,3, 0), Point(-1, -1), opts.dilateIterations);
@@ -79,12 +80,12 @@ Mat prepareForContourDetection(
     rectangle(dst, Point(0, 0), Point(size.width, cropWidth), black, CV_FILLED);
     rectangle(dst, Point(size.width - cropWidth, 0), Point(size.width, size.height), black, CV_FILLED);
     rectangle(dst, Point(0, size.height - cropWidth), Point(size.width, size.height), black, CV_FILLED);
-    // if (renderDebugImages) cvhelper::recordImage(dst, "dilate");
+    // if (renderDebugImages) cvdbg::recordImage(dst, "dilate");
 
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     /// Canny detector
     // Canny(dst, dst, lowThreshold, lowThreshold*ratio, kernel_size);
-    // if (renderDebugImages) cvhelper::recordImage(dst, "canny");
+    // if (renderDebugImages) cvdbg::recordImage(dst, "canny");
 
     return dst;
 }
@@ -410,7 +411,7 @@ vector<HandData> findContours(
     }
 
     if (renderDebugImages) {
-      cvhelper::recordImage(debugImage, "hand data");
+      cvdbg::recordImage(debugImage, "hand data");
       debugImage.copyTo(contourImg);
     }
 
@@ -425,7 +426,7 @@ const int LOW = 150;
 const int maxImageWidth = 1000;
 const int maxImageHeight = 1000;
 
-void processFrame(Mat &src, Mat &out, FrameWithHands &handsFound, Options opts, bool renderDebugImages)
+void processFrame(Mat &src, Mat &depth, Mat &depthBackground, Mat &out, FrameWithHands &handsFound, Options opts, bool renderDebugImages)
 {
   Mat resized;
   cvhelper::resizeToFit(src, resized, maxImageWidth, maxImageHeight);

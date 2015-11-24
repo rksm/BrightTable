@@ -172,11 +172,11 @@ void KinectCamera::readWithDepth(cv::Mat &frame, cv::Mat &depth)
     {
       for (int j = 0; j < width; j++)
       {
-        ss << depth.at<float>(i,j) << " ";
-        float val = depth.at<float>(i,j);
-        if (max < val) max = val;
-        if (min > val && val != 0) min = val;
-        if (val > 255) val = 255;
+        ss << depth.at<float>(i,j) << ",";
+        // float val = depth.at<float>(i,j);
+        // if (max < val) max = val;
+        // if (min > val && val != 0) min = val;
+        // if (val > 255) val = 255;
       
         // depth.at<cv::Vec4b>(i,j)[0] = val;
         // depth.at<cv::Vec4b>(i,j)[1] = val;

@@ -37,12 +37,6 @@ void resizeToFit(cv::Mat&, cv::Mat&, float, float);
 
 const cv::Scalar randomColor();
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-// debuggin
-void recordImage(const cv::Mat, std::string);
-void saveRecordedImages(const std::string&);
-cv::Mat getAndClearRecordedImages();
-
 }
 
 #endif  // CV_HELPER_H_
