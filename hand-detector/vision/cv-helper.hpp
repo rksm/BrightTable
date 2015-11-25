@@ -37,6 +37,10 @@ void resizeToFit(cv::Mat&, cv::Mat&, float, float);
 
 const cv::Scalar randomColor();
 
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+void convertToProperGrayscale(cv::Mat&, float percentile=5.0f);
+
 }
 
 #endif  // CV_HELPER_H_

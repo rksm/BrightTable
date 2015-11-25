@@ -18,6 +18,9 @@ externalproject_add(
 
 add_executable (hand-detector-server
   "main.cpp"
+  "options.hpp"
+  "options.cpp"
+  "services.hpp"
   "services.cpp"
 )
 

@@ -18,17 +18,15 @@ namespace screen {
 
 void prepareImage(const Mat &imgIn, Mat &imgOut, Options opts)
 {
-  if (imgIn.type() == CV_8UC3) cvtColor(imgIn, imgOut, CV_BGR2GRAY);
-  else imgIn.copyTo(imgOut);
+  if (imgIn.type() != CV_8UC1 || imgIn.type() != CV_32SC1)
+    cvtColor(imgIn, imgOut, CV_BGR2GRAY);
   medianBlur(imgOut, imgOut, opts.blurIntensity);
   threshold(imgOut, imgOut, opts.minThreshold, opts.maxThreshold, opts.thresholdType);
-  // cvtColor(imgOut, imgOut, CV_RGB2GRAY);
 }
 
-Mat extractContours(const Mat &imgIn, Options opts, bool debugRecordings)
+vector<Point> extractContourPoints(const Mat &imgIn, Options opts, bool debugRecordings)
 {
   Mat dst = Mat::zeros(imgIn.size(), CV_8UC1);
-  Mat contourDst = Mat::zeros(imgIn.size(), CV_8UC1);
   prepareImage(imgIn, dst, opts);
   if (debugRecordings) cvdbg::recordImage(dst, "prep");
 
@@ -36,7 +34,7 @@ Mat extractContours(const Mat &imgIn, Options opts, bool debugRecordings)
   vector<cv::Vec4i> hierarchy;
   findContours(dst, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_TC89_L1, Point(0, 0));
 
-  if (contours.empty()) return contourDst;
+  if (contours.empty()) return vector<Point>();
 
   double area = 0;
   int biggestI = 0;
@@ -50,10 +48,7 @@ Mat extractContours(const Mat &imgIn, Options opts, bool debugRecordings)
 
   vector<Point> hullPoints;
   convexHull(contours[biggestI], hullPoints);
-  cvhelper::drawPointsConnected<Point>(hullPoints, contourDst);
-  if (debugRecordings) cvdbg::recordImage(contourDst, "contour");
-
-  return contourDst;
+  return hullPoints;
 }
 
 vector<cv::Vec4i> detectLines(Mat &imgIn, Options opts)
@@ -97,9 +92,16 @@ vector<cv::Vec4i> detectLines(Mat &imgIn, Options opts)
 
 vector<cv::Vec4i> findLinesOfLargestRect(Mat &src, Options opts, bool debugRecordings)
 {
-  Mat contours = extractContours(src, opts, debugRecordings);
-  vector<cv::Vec4i> lines = detectLines(contours, opts);
-  
+  auto points = extractContourPoints(src, opts, debugRecordings);
+
+  Mat contour = Mat::zeros(src.size(), CV_8UC1);
+  cvhelper::drawPointsConnected<Point>(points, contour);
+  if (debugRecordings) cvdbg::recordImage(contour, "contour");
+
+  vector<cv::Vec4i> lines = detectLines(contour, opts);
+  for (int i = 1; i < points.size(); i++)
+    lines.push_back(cv::Vec4i(points[i-1].x, points[i-1].y, points[i].x, points[i].y));
+
   if (debugRecordings)
   {
     for (auto l : lines) {
