@@ -53,7 +53,7 @@ Mat combineImages(vector<Mat> images) {
         height = max(height, im.rows);
     }
 
-    Mat result = Mat(height, width, CV_8UC3);
+    Mat result = Mat(height, width, CV_8UC4);
 
     int currentCol = 0;
     for (auto im : images) {

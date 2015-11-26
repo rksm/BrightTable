@@ -31,6 +31,7 @@ Json::Value convert(Finger data) {
   json["base1"] = convert(data.base1);
   json["base2"] = convert(data.base2);
   json["tip"] = convert(data.tip);
+  json["z"] = data.z;
   return json;
 }
 
@@ -56,6 +57,10 @@ Json::Value convert(FrameWithHands data) {
     json["hands"][i] = convert(data.hands[i]);
   }
   return json;
+}
+
+Json::Value frameWithHandsToJSON(FrameWithHands &data) {
+  return convert(data);
 }
 
 std::string frameWithHandsToJSONString(FrameWithHands &data) {

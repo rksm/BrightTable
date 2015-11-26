@@ -21,64 +21,14 @@ using cv::Mat;
 using cv::imread;
 using Json::Value;
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+namespace handdetection {
+namespace server {
 
-void saveHandInput(string path, Mat &rgb, Mat &depth, Mat &depthBg, Mat &proj)
-{
+bool debug = false;
+#define dbg \
+    if (!debug) {} \
+    else std::cout
 
-  if (path == "") {
-    std::time_t t = std::time(0);
-    path = std::to_string(t) + ".yml";
-  }
-
-  cv::FileStorage fs(path, cv::FileStorage::WRITE);
-
-  fs << "rgb" << rgb
-     << "depth" << depth
-     << "depthBackground" << depthBg
-     << "projection" << proj;
-
-  fs.release();
-}
-
-Mat depthDiff(Value msg, Mat &image, Mat &depthImage, Mat &depthBackground)
-{
-  Mat diff(depthImage.size(), CV_32F);
-  absdiff(depthImage, depthBackground, diff);
-  cv::normalize(diff, diff);
-  auto depthThreshold = msg["data"].get("depthThreshold", 0).asFloat();
-  cv::threshold(diff, diff, depthThreshold, 1.0f, cv::THRESH_BINARY);
-  return diff;
-}
-
-// void debugDepth(Value msg, Mat &image, Mat &depthImage, Mat &depthBackground, Mat &proj)
-// {
-//   Mat diff(depthImage.size(), CV_32F);
-//   absdiff(depthImage, depthBackground, diff);
-//   cv::normalize(diff, diff);
-//   auto depthThreshold = msg["data"].get("depthThreshold", 0).asFloat();
-//   Mat diff2;
-//   cv::threshold(diff, diff2, depthThreshold, 1.0f, cv::THRESH_BINARY);
-//   saveHandInput("test.yml", image, depthImage, depthBackground, proj);
-//   imshow("depth diff 1", diff);
-//   imshow("depth diff 2", diff2);
-//   cv::waitKey(30);
-// }
-
-void transformFrame(Mat &input, Mat &output, cv::Size &tfmedSize, Mat &proj)
-{
-  output.create(tfmedSize, input.type());
-  cv::warpPerspective(input, output, proj, tfmedSize);
-}
-
-void answerWithError(Server &server, Value &msg, string errMessage)
-{
-  std::cout << errMessage << std::endl;
-  Value answer;
-  answer["data"]["error"] = true;
-  answer["data"]["message"] = errMessage;
-  server->answer(msg, answer);
-}
 
 vision::cam::CameraPtr getVideoCaptureDev(Value &msg)
 {
@@ -90,10 +40,15 @@ vision::cam::CameraPtr getVideoCaptureDev(Value &msg)
   }
 }
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-namespace handdetection {
-namespace server {
+void answerWithError(Server &server, Value &msg, string errMessage)
+{
+  std::cout << errMessage << std::endl;
+  Value answer;
+  answer["data"]["error"] = true;
+  answer["data"]["message"] = errMessage;
+  server->answer(msg, answer);
+}
 
 bool uploadedDataToMat(Server &server, string &sender, Value &msg, Mat &image)
 {
@@ -172,10 +127,152 @@ void readFrameAndSend(
 }
 
 
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+
+void saveHandInput(string path, Mat &rgb, Mat &depth, Mat &depthBg, Mat &proj)
+{
+
+  if (path == "") {
+    std::time_t t = std::time(0);
+    path = std::to_string(t) + ".yml";
+  }
+
+  cv::FileStorage fs(path, cv::FileStorage::WRITE);
+
+  fs << "rgb" << rgb
+     << "depth" << depth
+     << "depthBackground" << depthBg
+     << "projection" << proj;
+
+  fs.release();
+}
+
+void depthDiff(
+  const Value msg,
+  const Mat &depth,
+  const Mat &depthBackground,
+  Mat &diffSmooth,
+  Mat &diffMask)
+{
+
+  Mat diff(depth.size(), CV_32F);
+  absdiff(depth, depthBackground, diff);
+
+  double min = 0, max = 200;
+  diff.convertTo(diffSmooth, CV_8U, 255.0/(max-min), -255.0*min/(max-min));
+  cvtColor(diffSmooth, diffSmooth, CV_GRAY2BGRA);
+
+  cv::normalize(diff, diff);
+  auto depthThreshold = msg["data"].get("depthThreshold", 0).asFloat();
+  cv::threshold(diff, diff, depthThreshold, 1.0f, cv::THRESH_BINARY);
+  diff.convertTo(diffMask, CV_8UC1, 255);
+}
+
+void transformFrame(Mat &input, Mat &output, cv::Size &tfmedSize, Mat &proj)
+{
+  output.create(tfmedSize, input.type());
+  cv::warpPerspective(input, output, proj, tfmedSize);
+}
+
+void recognizeHand(
+  Value &msg,
+  Mat &in, Mat &depth, Mat &depthBackground, Mat &proj, Mat &out,
+  vision::hand::FrameWithHands &handData,
+  int maxWidth, int maxHeight,
+  vision::hand::Options &opts,
+  bool record = false)
+{
+  if (maxWidth > 0 && maxHeight > 0) {
+    cvhelper::resizeToFit(in, in, maxWidth, maxHeight);
+    if (!depth.empty()) cvhelper::resizeToFit(depth, depth, maxWidth, maxHeight);
+    if (!depthBackground.empty()) cvhelper::resizeToFit(depthBackground, depthBackground, maxWidth, maxHeight);
+  }
+
+  if (record) {
+    saveHandInput("", in, depth, depthBackground, proj);
+  }
+
+  cv::Size tfmedSize = in.size();
+  transformFrame(in, in, tfmedSize, proj);
+  if (depth.empty()) depth = Mat::zeros(in.size(), CV_32F);
+  transformFrame(depth, depth, tfmedSize, proj);
+  if (depthBackground.empty()) depthBackground = Mat::zeros(in.size(), CV_32F);
+  transformFrame(depthBackground, depthBackground, tfmedSize, proj);
+
+  Mat diffSmooth(depth.size(), CV_8UC4);
+  Mat diffMask(depth.size(), CV_8UC1);
+
+  depthDiff(msg, depth, depthBackground, diffSmooth, diffMask);
+
+  vision::hand::processFrame(
+    in, depth, depthBackground, diffSmooth, diffMask,
+    handData, opts);
+
+  // debugging...
+  if (opts.renderDebugImages) {
+    Mat recorded = cvdbg::getAndClearRecordedImages();
+    cvhelper::resizeToFit(recorded, out, maxWidth, maxWidth);
+  } else {
+    out = in;
+  }
+}
+
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+std::map<std::string, bool> handDetectionActivities;
+
+void runHandDetectionProcessFor(
+  string &target, Server &server, Value &msg,
+  Mat &frame, Mat &depthFrame, Mat &depthBackground, Mat &proj, vision::cam::CameraPtr &dev,
+  uint maxWidth, uint maxHeight,
+  vision::hand::Options &opts,
+  bool record)
+{
+  // still running?
+  if (!handDetectionActivities[target]) {
+    std::cout << "stopping hand detection for " << target << std::endl;
+    return;
+  }
+
+  try {
+    dev->readWithDepth(frame, depthFrame);
+
+    vision::hand::FrameWithHands handData;
+    Mat recorded;
+    recognizeHand(msg, frame, depthFrame, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, record);
+
+    sendMat(recorded, server, target);
+    cv::waitKey(30);
+    // sendMat(frame, server, target);
+    server->setTimer(10, bind(runHandDetectionProcessFor,
+      target, server, msg,
+      frame, depthFrame, depthBackground, proj, dev,
+      maxWidth, maxHeight,
+      opts, record));
+  } catch (const std::exception& e) {
+    std::cout << "error in runHandDetectionProcessFor: " << e.what() << std::endl;
+  }
+}
+
+
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// HANDLER
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+// captureCameraService
+// uploadImageService
+// recognizeScreenCornersService
+// screenCornersTransform
+// screenTransform
+// handDetection
+// handDetectionStreamStop
+// handDetectionStreamStart
+
 void captureCameraService(Value msg, Server server)
 {
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
+  debug = msg["data"]["debug"].asBool();
   uint maxWidth = msg["data"].get("maxWidth", 0).asInt();
   uint maxHeight = msg["data"].get("maxHeight", 0).asInt();
   uint nFrames = msg["data"].get("nFrames", 1).asInt();
@@ -191,12 +288,11 @@ void captureCameraService(Value msg, Server server)
   }
 }
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
 void uploadImageService(Value msg, Server server)
 {
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
+  debug = msg["data"]["debug"].asBool();
   auto path = msg["data"].get("path", "").asString();
   if (path == "") { answerWithError(server, msg, "no path"); return; }
   int h = msg["data"].get("height", 0).asInt(),
@@ -226,7 +322,7 @@ void recognizeScreenCornersService(Value msg, Server server)
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
-  bool debug = msg["data"]["debug"].asBool();
+  debug = msg["data"]["debug"].asBool();
 
   vision::screen::Options opts = screenOptions(msg["data"]);
 
@@ -265,14 +361,13 @@ void recognizeScreenCornersService(Value msg, Server server)
   server->answer(msg, answer);
 }
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
 void screenCornersTransform(Value msg, Server server)
 {
   // givent four corners and a "screen area" (width, height), produce a 3x3
   // matrix to crop transform the area identified byt the corners into a rectangle
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
+  debug = msg["data"]["debug"].asBool();
   float tlX = msg["data"]["corners"][0]["x"].asFloat(),
         tlY = msg["data"]["corners"][0]["y"].asFloat(),
         trX = msg["data"]["corners"][1]["x"].asFloat(),
@@ -300,14 +395,13 @@ void screenCornersTransform(Value msg, Server server)
   server->answer(msg, answer);
 }
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
 void screenTransform(Value msg, Server server)
 {
   // expects a 3x3 projection matrix, e.g. from screenCornersTransform and
   // transforms the uploaded image with it
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
+  debug = msg["data"]["debug"].asBool();
 
   Value projection = msg["data"]["projection"];
 
@@ -352,56 +446,11 @@ void screenTransform(Value msg, Server server)
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-void recognizeHand(
-  Value &msg,
-  Mat &in, Mat &depth, Mat &depthBackground, Mat &proj, Mat &out,
-  vision::hand::FrameWithHands &handData,
-  int maxWidth, int maxHeight,
-  vision::hand::Options &opts,
-  bool record = false, bool debug = false)
-{
-  if (maxWidth > 0 && maxHeight > 0) {
-    cvhelper::resizeToFit(in, in, maxWidth, maxHeight);
-    if (!depth.empty()) cvhelper::resizeToFit(depth, depth, maxWidth, maxHeight);
-    if (!depthBackground.empty()) cvhelper::resizeToFit(depthBackground, depthBackground, maxWidth, maxHeight);
-  }
-
-  if (record) {
-    saveHandInput("", in, depth, depthBackground, proj);
-  }
-
-  Mat output;
-  cv::Size tfmedSize = in.size();
-  transformFrame(in, output, tfmedSize, proj);
-  if (depth.empty()) depth = Mat::zeros(in.size(), CV_32F);
-  transformFrame(depth, depth, tfmedSize, proj);
-  if (depthBackground.empty()) depthBackground = Mat::zeros(in.size(), CV_32F);
-  transformFrame(depthBackground, depthBackground, tfmedSize, proj);
-
-  Mat diff = depthDiff(msg, in, depth, depthBackground);
-  vision::hand::processFrame(output, depth, depthBackground, output, handData, opts, debug);
-
-  // debugging...
-  if (debug) {
-    // std::cout << vision::hand::frameWithHandsToJSONString(handData) << std::endl;
-
-    Mat diffu = diff.clone();
-    diffu *= 255;
-    diffu.convertTo(diffu, CV_8UC3);
-    cvdbg::recordImage(diffu, "diff");
-    // debugDepth(msg, in, depth, depthBackground, proj);
-    Mat recorded = cvdbg::getAndClearRecordedImages();
-    // recorded.copyTo(out);
-    cvhelper::resizeToFit(recorded, out, maxWidth, maxWidth);
-  } else {
-    out = in;
-  }
-}
-
 void handDetection(Value msg, Server server)
 {
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
+  debug = msg["data"]["debug"].asBool();
 
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
@@ -412,7 +461,7 @@ void handDetection(Value msg, Server server)
   Mat image, depthImage, depthBackground, proj = Mat::eye(3,3,CV_32F);
 
   if (playbackFile != "") {
-    std::cout << "playbackFile file: " << playbackFile << std::endl;
+    dbg << "playbackFile file: " << playbackFile << std::endl;
     cv::FileStorage fs(playbackFile, cv::FileStorage::READ);
     fs["rgb"] >> image;
     fs["projection"] >> proj;
@@ -436,60 +485,24 @@ void handDetection(Value msg, Server server)
     record = true;
   }
 
-
   if (msg["data"].isMember("record")) record = msg["data"]["record"].asBool();
-  bool debug = msg["data"]["debug"].asBool();
+
   vision::hand::Options opts = handOptions(msg["data"]);
   vision::hand::FrameWithHands handData;
   Mat recorded;
-  recognizeHand(msg, image, depthImage, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, record, debug);
+  recognizeHand(msg, image, depthImage, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, record);
 
   sendMat(recorded, server, sender);
+  cv::waitKey(30);
 
-  server->answer(msg, (string)"OK");
-}
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-std::map<std::string, bool> handDetectionActivities;
-
-void runHandDetectionProcessFor(
-  string &target, Server &server, Value &msg,
-  Mat &frame, Mat &depthFrame, Mat &depthBackground, Mat &proj, vision::cam::CameraPtr &dev,
-  uint maxWidth, uint maxHeight,
-  vision::hand::Options &opts,
-  bool record, bool debug = false)
-{
-  // still running?
-  if (!handDetectionActivities[target]) {
-    std::cout << "stopping hand detection for " << target << std::endl;
-    return;
-  }
-
-  try {
-    dev->readWithDepth(frame, depthFrame);
-
-    vision::hand::FrameWithHands handData;
-    Mat recorded;
-    recognizeHand(msg, frame, depthFrame, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, record, debug);
-
-    sendMat(recorded, server, target);
-    cv::waitKey(30);
-    // sendMat(frame, server, target);
-    server->setTimer(10, bind(runHandDetectionProcessFor,
-      target, server, msg,
-      frame, depthFrame, depthBackground, proj, dev,
-      maxWidth, maxHeight,
-      opts, record, debug));
-  } catch (const std::exception& e) {
-    std::cout << "error in runHandDetectionProcessFor: " << e.what() << std::endl;
-  }
+  server->answer(msg, frameWithHandsToJSON(handData));
 }
 
 void handDetectionStreamStop(Value msg, Server server)
 {
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
+  debug = msg["data"]["debug"].asBool();
   handDetectionActivities[sender] = false;
 }
 
@@ -499,9 +512,9 @@ void handDetectionStreamStart(Value msg, Server server)
   // transforms the uploaded image with it
   auto sender = msg.get("sender", "").asString();
   if (sender == "") { answerWithError(server, msg, "no sender"); return; }
-
-  bool debug = msg["data"]["debug"].asBool();
+  debug = msg["data"]["debug"].asBool();
   bool record = msg["data"]["record"].asBool();
+
   auto maxWidth = msg["data"].get("maxWidth", 0).asInt();
   auto maxHeight = msg["data"].get("maxHeight", 0).asInt();
   auto backgroundFile = msg["data"].get("backgroundFile", "").asString();
@@ -512,7 +525,7 @@ void handDetectionStreamStart(Value msg, Server server)
 
   Mat proj = Mat::eye(3,3,CV_32F);
   if (backgroundFile != "") {
-    std::cout << "backgroundFile file: " << backgroundFile << std::endl;
+    dbg << "backgroundFile file: " << backgroundFile << std::endl;
     cv::FileStorage fs(backgroundFile, cv::FileStorage::READ);
     fs["projection"] >> proj;
     fs["depthBackground"] >> depthBackground;
@@ -529,10 +542,11 @@ void handDetectionStreamStart(Value msg, Server server)
 
   vision::hand::Options opts = handOptions(msg["data"]);
 
-  runHandDetectionProcessFor(sender, server, msg, image, depthImage, depthBackground, proj, cam, maxWidth, maxHeight, opts, record, debug);
+  runHandDetectionProcessFor(sender, server, msg, image, depthImage, depthBackground, proj, cam, maxWidth, maxHeight, opts, record);
 
   server->answer(msg, (string)"OK");
 }
+
 
 }
 }

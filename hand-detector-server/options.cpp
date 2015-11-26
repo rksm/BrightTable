@@ -25,6 +25,7 @@ int thresholdType(std::string name)
 vision::quad::Options quadOptions(Value &data)
 {
   vision::quad::Options opts;
+  if (data.isMember("debug"))                       opts.debug                       = data["debug"].asBool();
   if (data.isMember("minAngleOfIntersectingLines")) opts.minAngleOfIntersectingLines = data["minAngleOfIntersectingLines"].asFloat();
   if (data.isMember("maxAngleOfIntersectingLines")) opts.maxAngleOfIntersectingLines = data["maxAngleOfIntersectingLines"].asFloat();
   return opts;
@@ -33,6 +34,7 @@ vision::quad::Options quadOptions(Value &data)
 vision::screen::Options screenOptions(Value &data)
 {
   vision::screen::Options opts;
+  if (data.isMember("debug"))              opts.debug              = data["debug"].asBool();
   if (data.isMember("blurIntensity"))      opts.blurIntensity      = data["blurIntensity"].asInt();
   if (data.isMember("minThreshold"))       opts.minThreshold       = data["minThreshold"].asInt();
   if (data.isMember("maxThreshold"))       opts.maxThreshold       = data["maxThreshold"].asInt();
@@ -50,12 +52,16 @@ vision::screen::Options screenOptions(Value &data)
 vision::hand::Options handOptions(Value &data)
 {
   vision::hand::Options opts;
-  if (data.isMember("fingerTipWidth"))   opts.fingerTipWidth   = data["fingerTipWidth"].asInt();
-  if (data.isMember("blurIntensity"))    opts.blurIntensity    = data["blurIntensity"].asInt();
-  if (data.isMember("thresholdMin"))     opts.thresholdMin     = data["thresholdMin"].asInt();
-  if (data.isMember("thresholdMax"))     opts.thresholdMax     = data["thresholdMax"].asInt();
-  if (data.isMember("thresholdType"))    opts.thresholdType    = thresholdType(data["thresholdType"].asString());
-  if (data.isMember("dilateIterations")) opts.dilateIterations = data["dilateIterations"].asInt();
-  if (data.isMember("cropWidth"))        opts.cropWidth        = data["cropWidth"].asInt();
+  if (data.isMember("debug"))                     opts.debug                     = data["debug"].asBool();
+  if (data.isMember("renderDebugImages"))         opts.renderDebugImages         = data["renderDebugImages"].asBool();
+  if (data.isMember("fingerTipWidth"))            opts.fingerTipWidth            = data["fingerTipWidth"].asInt();
+  if (data.isMember("minHandAreaInPercent"))      opts.minHandAreaInPercent      = data["minHandAreaInPercent"].asFloat();
+  if (data.isMember("depthSamplingKernelLength")) opts.depthSamplingKernelLength = data["depthSamplingKernelLength"].asInt();
+  if (data.isMember("blurIntensity"))             opts.blurIntensity             = data["blurIntensity"].asInt();
+  if (data.isMember("thresholdMin"))              opts.thresholdMin              = data["thresholdMin"].asInt();
+  if (data.isMember("thresholdMax"))              opts.thresholdMax              = data["thresholdMax"].asInt();
+  if (data.isMember("thresholdType"))             opts.thresholdType             = thresholdType(data["thresholdType"].asString());
+  if (data.isMember("dilateIterations"))          opts.dilateIterations          = data["dilateIterations"].asInt();
+  if (data.isMember("cropWidth"))                 opts.cropWidth                 = data["cropWidth"].asInt();
   return opts;
 }

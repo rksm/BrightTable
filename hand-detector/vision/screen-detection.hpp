@@ -12,6 +12,7 @@ namespace screen {
 
 struct Options
 {
+  bool debug = false;
   int blurIntensity = 21;
   int minThreshold = 100;
   int maxThreshold = 245;

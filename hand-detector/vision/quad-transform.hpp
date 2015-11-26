@@ -17,6 +17,7 @@ namespace quad {
 
 struct Options
 {
+  bool debug = false;
   float minAngleOfIntersectingLines = 60;
   float maxAngleOfIntersectingLines = 140;
 };
