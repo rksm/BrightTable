@@ -14,6 +14,7 @@
 #include "camera.hpp"
 #include "options.hpp"
 #include "services.hpp"
+#include "timer.hpp"
 
 using std::string;
 using std::vector;
@@ -148,6 +149,45 @@ void saveHandInput(string path, Mat &rgb, Mat &depth, Mat &depthBg, Mat &proj)
   fs.release();
 }
 
+std::pair<float,float> minMaxBasedOnPercentile(Mat &mat, float percentile)
+{
+
+// auto t = timeToRunMs([&](){
+  double min, max;
+  cv::minMaxIdx(mat, &min, &max);
+  std::cout << "histogram " << min << "-" << max << std::endl;
+  // int histSize[] = {static_cast<int>(max-min)};
+  int histSize[] = {100};
+  int channels[] = {0};
+  const float hRange[] = {(float)min, (float)max};
+  // const float hRange[] = {0, 256};
+  const float* ranges[] = {hRange};
+  int nChannels = 1;
+  cv::Mat hist;
+  bool uniform = true; bool accumulate = false;
+  cv::calcHist(&mat, 1, channels, cv::noArray(), hist, nChannels, histSize, ranges, uniform, accumulate);
+  // std::cout << hist << std::endl;
+// });
+// std::cout << t.count() << std::endl;
+
+  float percentileValue = (max - min) / 100 * percentile,
+        valPerBin = (max - min) / histSize[0],
+        lowerPercentile, upperPercentile,
+        binSum;
+  int upperIndex, lowerIndex;
+  
+  binSum = 0;
+  for (int i = histSize[0]; i >= 0; i--)
+  { upperIndex = i; binSum += hist.at<float>(i); if (binSum > percentileValue) break; }
+  binSum = 0;
+  for (int i = 0; i < histSize[0]; i++)
+  { lowerIndex = i; binSum += hist.at<float>(i); if (binSum > percentileValue) break; }
+  
+  std::cout << lowerIndex << "..." << lowerIndex*valPerBin << std::endl;
+  std::cout << upperIndex << "..." << upperIndex*valPerBin << std::endl;
+  return std::make_tuple(lowerIndex*valPerBin, upperIndex*valPerBin);
+}
+
 void depthDiff(
   const Value msg,
   const Mat &depth,
@@ -158,15 +198,27 @@ void depthDiff(
 
   Mat diff(depth.size(), CV_32F);
   absdiff(depth, depthBackground, diff);
+  
+  // min, max: between what values should depth be considered?
+  // float depthPercentile = msg["data"].get("depthPercentile", 0.1f).asFloat();
+  // auto minMax = minMaxBasedOnPercentile(diff, depthPercentile);
+  // float min = minMax.first,
+  //       max = minMax.second;
+  float min = msg["data"].get("depthSmoothLowerLimit", 500.0f).asFloat(),
+        max = msg["data"].get("depthSmoothUpperLimit", 1000.0f).asFloat();
 
-  double min = 0, max = 200;
-  diff.convertTo(diffSmooth, CV_8U, 255.0/(max-min), -255.0*min/(max-min));
+  // diff.convertTo(diffSmooth, CV_8U, 255.0f/(max-min), -255.0f*min/(max-min));
+  diff.convertTo(diffSmooth, CV_8U, 255.0f/(max-min));
   cvtColor(diffSmooth, diffSmooth, CV_GRAY2BGRA);
 
   cv::normalize(diff, diff);
   auto depthThreshold = msg["data"].get("depthThreshold", 0).asFloat();
   cv::threshold(diff, diff, depthThreshold, 1.0f, cv::THRESH_BINARY);
   diff.convertTo(diffMask, CV_8UC1, 255);
+
+  // imshow("diff", diffSmooth);
+  // imshow("diff2", diffMask);
+  // cv::waitKey(30);
 }
 
 void transformFrame(Mat &input, Mat &output, cv::Size &tfmedSize, Mat &proj)
@@ -188,7 +240,6 @@ void recognizeHand(
     if (!depth.empty()) cvhelper::resizeToFit(depth, depth, maxWidth, maxHeight);
     if (!depthBackground.empty()) cvhelper::resizeToFit(depthBackground, depthBackground, maxWidth, maxHeight);
   }
-
   if (record) {
     saveHandInput("", in, depth, depthBackground, proj);
   }
@@ -198,6 +249,8 @@ void recognizeHand(
   if (depth.empty()) depth = Mat::zeros(in.size(), CV_32F);
   transformFrame(depth, depth, tfmedSize, proj);
   if (depthBackground.empty()) depthBackground = Mat::zeros(in.size(), CV_32F);
+  if (depth.size() != depthBackground.size())
+    resize(depthBackground, depthBackground, depth.size());
   transformFrame(depthBackground, depthBackground, tfmedSize, proj);
 
   Mat diffSmooth(depth.size(), CV_8UC4);
@@ -240,12 +293,21 @@ void runHandDetectionProcessFor(
 
     vision::hand::FrameWithHands handData;
     Mat recorded;
+
     recognizeHand(msg, frame, depthFrame, depthBackground, proj, recorded, handData, maxWidth, maxHeight, opts, record);
 
-    sendMat(recorded, server, target);
-    cv::waitKey(30);
+    // sendMat(recorded, server, target);
+
+    server->answer(msg, frameWithHandsToJSON(handData), true);
+    
+    Value handEventMsg;
+    handEventMsg["action"] = "hand-event";
+    handEventMsg["target"] = msg["sender"];
+    handEventMsg["data"] = frameWithHandsToJSON(handData);
+    server->send(handEventMsg);
+
     // sendMat(frame, server, target);
-    server->setTimer(10, bind(runHandDetectionProcessFor,
+    server->setTimer(20, bind(runHandDetectionProcessFor,
       target, server, msg,
       frame, depthFrame, depthBackground, proj, dev,
       maxWidth, maxHeight,

@@ -277,7 +277,6 @@ vector<Finger> findFingerTips(
     auto d1 = defects[i], d2 = defects[i-1];
     line(debug, d1.onHullStart, d2.defect, CV_RGB(255,100,0), 3);
     line(debug, d1.onHullStart, d1.defect, CV_RGB(100,255,0), 3);
-    std::cout << d1.onHullEnd << d2.onHullStart << std::endl;
     if (norm(d1.onHullEnd - d2.onHullStart) > opts.fingerTipWidth)
     {
       d2.onHullStart = d1.onHullEnd;
@@ -319,19 +318,32 @@ int depthAtPoint(Point &p, const Mat &depth, const Mat &depthBackground, Options
 {
   auto l = opts.depthSamplingKernelLength;
 
-  Rect bounds = Rect(p.x-l, p.y-l, 2*l, 2*l);
+  auto x = std::min(depth.cols-1, std::max(p.x-l, 0)),
+       y = std::min(depth.rows-1, std::max(p.y-l, 0)),
+       w = 2*l, h = 2*l;
+  if (x + w > depth.cols) w = depth.cols-x;
+  if (y + h > depth.rows) h = depth.rows-y;
+  auto w2 = std::floor(w/2.0f),
+       h2 = std::floor(h/2.0f);
+
+  Rect bounds = Rect(x,y,w,h);
+  
   Mat depthRoi = Mat(depth, bounds);
   Mat depthBgRoi = Mat(depthBackground, bounds);
 
+// std::cout << depthRoi.size() << " vs " << depthBgRoi.size() << std::endl;
+  // return 0;
   Mat diff(depthRoi.size(), CV_32F);
   absdiff(depthRoi, depthBgRoi, diff);
+// std::cout << diff.size() << " vs " << w2 << "," << h2 << std::endl;
   
-  return std::max({mean(depthRoi)[0],
-                   mean(Mat(diff, Rect(0, 0, l, l)))[0],
-                   mean(Mat(diff, Rect(l, 0, l, l)))[0],
-                   mean(Mat(diff, Rect(l, l, l, l)))[0],
-                   mean(Mat(diff, Rect(0, l, l, l)))[0],
-                   mean(Mat(diff, Rect(l/2, l/2, l, l)))[0]});
+  return std::max({
+    // mean(depthRoi)[0],
+                  mean(Mat(diff, Rect(0,    0,    w2, h2)))[0],
+                  mean(Mat(diff, Rect(w2,   0,    w2, h2)))[0],
+                  mean(Mat(diff, Rect(w2,   h2,   w2, h2)))[0],
+                  mean(Mat(diff, Rect(0,    h2,   w2, h2)))[0],
+                  mean(Mat(diff, Rect(w2/2, h2/2, w2, h2)))[0]});
 }
 
 vector<HandData> findContours(
